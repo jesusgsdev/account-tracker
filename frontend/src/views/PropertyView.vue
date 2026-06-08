@@ -44,15 +44,31 @@
       <button class="btn btn-primary" @click="openAdd">Add Property</button>
     </div>
 
-    <!-- Property cards -->
-    <div v-else class="mortgages-grid">
-      <MortgageCard
-        v-for="p in store.properties"
-        :key="p.id"
-        :property="p"
-        @edit="openEdit"
-        @updated="store.fetchAll()"
-      />
+    <!-- Property Dashboards (2-Column Layout) -->
+    <div v-else class="property-dashboard-grid">
+      <!-- Column 1: Property Card & Mortgage parts -->
+      <div class="property-details-col">
+        <MortgageCard
+          v-for="p in store.properties"
+          :key="p.id"
+          :property="p"
+          @edit="openEdit"
+          @updated="onPropertyUpdated"
+        />
+      </div>
+
+      <!-- Column 2: Valuation History Chart (Full remaining width) -->
+      <div class="property-chart-card card">
+        <div class="chart-header">
+          <h2 class="chart-title">Valuation History</h2>
+          <p class="text-xs text-muted">Estimated value compared to purchase price baseline</p>
+        </div>
+        
+        <div class="chart-wrap">
+          <div v-if="loadingHistory" class="skeleton" style="height: 100%; min-height: 300px; border-radius: var(--radius-md);" />
+          <PropertyValueChart v-else :history="historyData" :original-price="store.properties[0].original_price" />
+        </div>
+      </div>
     </div>
 
     <!-- Add / Edit Property Modal -->
@@ -68,14 +84,17 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useMortgageStore } from '@/stores/mortgage'
+import { api, type Property, type PropertyValueAuditLog } from '@/api/client'
 import MortgageCard from '@/components/property/MortgageCard.vue'
 import AddPropertyModal from '@/components/property/AddPropertyModal.vue'
-import type { Property } from '@/api/client'
+import PropertyValueChart from '@/components/property/PropertyValueChart.vue'
 
 const store = useMortgageStore()
 
 const showAdd = ref(false)
 const editingProperty = ref<Property | null>(null)
+const historyData = ref<PropertyValueAuditLog[]>([])
+const loadingHistory = ref(false)
 
 function fmt(v: number) {
   return v.toLocaleString('en-GB', { minimumFractionDigits: 2 })
@@ -89,6 +108,25 @@ function openAdd() {
 function openEdit(p: Property) {
   editingProperty.value = p
   showAdd.value = true
+}
+
+async function loadHistoryForProperties() {
+  if (store.properties.length > 0) {
+    loadingHistory.value = true
+    try {
+      const pId = store.properties[0].id
+      historyData.value = await api.properties.valueHistory(pId)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      loadingHistory.value = false
+    }
+  }
+}
+
+async function onPropertyUpdated() {
+  await store.fetchAll()
+  await loadHistoryForProperties()
 }
 
 async function onSaved(form: any) {
@@ -112,7 +150,7 @@ async function onSaved(form: any) {
         notes: form.notes,
       })
     }
-    await store.fetchAll()
+    await onPropertyUpdated()
   } catch (err: any) {
     alert(err.message)
   }
@@ -125,14 +163,17 @@ async function onDelete() {
       await store.deleteProperty(editingProperty.value.id)
       showAdd.value = false
       editingProperty.value = null
-      await store.fetchAll()
+      await onPropertyUpdated()
     } catch (err: any) {
       alert(err.message)
     }
   }
 }
 
-onMounted(() => store.fetchAll())
+onMounted(async () => {
+  await store.fetchAll()
+  await loadHistoryForProperties()
+})
 </script>
 
 <style scoped>
@@ -154,7 +195,7 @@ onMounted(() => store.fetchAll())
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1.2fr 1fr 1fr;
   gap: var(--space-4);
   margin-bottom: var(--space-6);
 }
@@ -174,14 +215,45 @@ onMounted(() => store.fetchAll())
 
 .loading-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(720px, 1fr));
   gap: var(--space-4);
 }
 
-.mortgages-grid {
+/* Property Dashboard Grid */
+.property-dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  grid-template-columns: 1.2fr 2fr;
   gap: var(--space-4);
+  align-items: stretch;
+}
+.property-details-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.property-chart-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  height: 100%;
+}
+.chart-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.chart-title {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+}
+.chart-wrap {
+  flex: 1;
+  min-height: 300px;
+  position: relative;
 }
 
 .empty-state {
@@ -195,8 +267,13 @@ onMounted(() => store.fetchAll())
 }
 .empty-icon { font-size: 3rem; }
 
+@media (max-width: 1400px) {
+  .property-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 768px) {
   .summary-grid { grid-template-columns: 1fr; }
-  .mortgages-grid { grid-template-columns: 1fr; }
 }
 </style>

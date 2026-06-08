@@ -46,12 +46,28 @@ npm run dev
 
 Stocks & Shares ISA, Cash ISA, LISA (Lifetime ISA), SIPP, Workplace Pension, GIA, Premium Bonds, Fixed-Term Bond, Current Account, Savings Account, and more.
 
-## Database
+## Database, Backup & Restore
 
 The SQLite database lives at `backend/tracker.db`. You can:
 - Open it with [DB Browser for SQLite](https://sqlitebrowser.org/)
-- Copy/move it to back up your data
-- Inspect the `accounts` and `audit_log` tables directly
+- Copy/move the `tracker.db` file to back up your data
+- Inspect the tables (`accounts`, `audit_log`, `properties`, `mortgage_parts`, etc.) directly
+
+### JSON Backup & Restore
+
+A JSON utility script is provided in the `backend/` folder to backup all tables to a portable JSON file, which is highly useful when database schema upgrades require rebuilding the SQLite file:
+
+```bash
+# Navigate and activate backend virtual env
+cd backend
+source venv/bin/activate
+
+# 1. Back up database tables to backup.json
+./backup.py --backup backup.json
+
+# 2. Restore database tables from backup.json (clears current data first)
+./backup.py --restore backup.json
+```
 
 ## API Docs
 

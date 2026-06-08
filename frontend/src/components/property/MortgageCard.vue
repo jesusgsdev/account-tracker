@@ -50,6 +50,8 @@
       </span>
     </div>
 
+
+
     <!-- Mortgage Parts Section -->
     <div class="parts-section">
       <div class="parts-header">
@@ -140,7 +142,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import type { Property, MortgagePart } from '@/api/client'
+import { api, type Property, type MortgagePart } from '@/api/client'
 import UpdatePropertyValueModal from './UpdatePropertyValueModal.vue'
 import AddPartModal from './AddPartModal.vue'
 import UpdatePartBalanceModal from './UpdatePartBalanceModal.vue'
@@ -380,4 +382,25 @@ function openUpdateBalance(part: MortgagePart) {
   padding-top: var(--space-2);
 }
 .ml-auto { margin-left: auto; }
+
+/* Chart Toggle Styles */
+.chart-toggle-row {
+  display: flex;
+  justify-content: center;
+  margin: var(--space-2) 0;
+}
+.btn-toggle-chart {
+  color: var(--accent-light);
+  background: rgba(108, 99, 255, 0.05);
+  cursor: pointer;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(139, 133, 255, 0.15);
+  transition: all var(--transition-fast);
+}
+.btn-toggle-chart:hover {
+  background: var(--accent-glow);
+  border-color: var(--accent-light);
+  color: #fff;
+}
 </style>
