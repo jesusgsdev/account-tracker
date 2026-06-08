@@ -56,6 +56,7 @@ class Property(Base):
     ownership_percent = Column(Float, default=100.0, nullable=False)  # 0–100
 
     notes = Column(Text, nullable=True)
+    purchase_date = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

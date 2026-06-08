@@ -26,16 +26,24 @@ const props = defineProps<{
   originalPrice: number | null
 }>()
 
+function parseDate(dStr: string) {
+  if (!dStr) return new Date()
+  if (dStr.endsWith('Z') || dStr.includes('+') || dStr.indexOf('T') !== -1) {
+    return new Date(dStr)
+  }
+  return new Date(dStr.replace(' ', 'T') + 'Z')
+}
+
 const chartData = computed(() => {
   if (!props.history.length) return null
 
   // Ensure history is sorted by date ascending for the graph
   const sortedHistory = [...props.history].sort((a, b) => 
-    new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime()
+    parseDate(a.recorded_at).getTime() - parseDate(b.recorded_at).getTime()
   )
 
   const labels = sortedHistory.map(h =>
-    new Date(h.recorded_at + 'Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    parseDate(h.recorded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
   )
 
   const datasets: any[] = [

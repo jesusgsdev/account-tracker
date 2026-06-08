@@ -57,16 +57,30 @@
         />
       </div>
 
-      <!-- Column 2: Valuation History Chart (Full remaining width) -->
-      <div class="property-chart-card card">
-        <div class="chart-header">
-          <h2 class="chart-title">Valuation History</h2>
-          <p class="text-xs text-muted">Estimated value compared to purchase price baseline</p>
+      <!-- Column 2: Charts (Full remaining width) -->
+      <div class="property-charts-col">
+        <!-- Valuation History -->
+        <div class="property-chart-card card">
+          <div class="chart-header">
+            <h2 class="chart-title">Valuation History</h2>
+            <p class="text-xs text-muted">Estimated value compared to purchase price baseline</p>
+          </div>
+          <div class="chart-wrap">
+            <div v-if="loadingHistory" class="skeleton" style="height: 100%; min-height: 250px; border-radius: var(--radius-md);" />
+            <PropertyValueChart v-else :history="historyData" :original-price="store.properties[0].original_price" />
+          </div>
         </div>
-        
-        <div class="chart-wrap">
-          <div v-if="loadingHistory" class="skeleton" style="height: 100%; min-height: 300px; border-radius: var(--radius-md);" />
-          <PropertyValueChart v-else :history="historyData" :original-price="store.properties[0].original_price" />
+
+        <!-- Debt History -->
+        <div class="property-chart-card card">
+          <div class="chart-header">
+            <h2 class="chart-title">Debt History</h2>
+            <p class="text-xs text-muted">Outstanding mortgage balance compared to purchase price baseline</p>
+          </div>
+          <div class="chart-wrap">
+            <div v-if="loadingDebtHistory" class="skeleton" style="height: 100%; min-height: 250px; border-radius: var(--radius-md);" />
+            <PropertyDebtChart v-else :history="debtHistoryData" :original-price="store.properties[0].original_price" />
+          </div>
         </div>
       </div>
     </div>
@@ -88,6 +102,7 @@ import { api, type Property, type PropertyValueAuditLog } from '@/api/client'
 import MortgageCard from '@/components/property/MortgageCard.vue'
 import AddPropertyModal from '@/components/property/AddPropertyModal.vue'
 import PropertyValueChart from '@/components/property/PropertyValueChart.vue'
+import PropertyDebtChart from '@/components/property/PropertyDebtChart.vue'
 
 const store = useMortgageStore()
 
@@ -95,6 +110,9 @@ const showAdd = ref(false)
 const editingProperty = ref<Property | null>(null)
 const historyData = ref<PropertyValueAuditLog[]>([])
 const loadingHistory = ref(false)
+
+const debtHistoryData = ref<{ recorded_at: string; total_debt: number }[]>([])
+const loadingDebtHistory = ref(false)
 
 function fmt(v: number) {
   return v.toLocaleString('en-GB', { minimumFractionDigits: 2 })
@@ -110,6 +128,86 @@ function openEdit(p: Property) {
   showAdd.value = true
 }
 
+async function loadDebtHistory() {
+  if (store.properties.length > 0) {
+    loadingDebtHistory.value = true
+    try {
+      const p = store.properties[0]
+      const parts = p.mortgage_parts || []
+      if (parts.length === 0) {
+        debtHistoryData.value = []
+        return
+      }
+      
+      // Fetch history for all parts
+      const partHistories = await Promise.all(
+        parts.map(part => api.properties.partHistory(part.id))
+      )
+      
+      const initialBalances: Record<number, number> = {}
+      const currentBalances: Record<number, number> = {}
+      const updateLogs: any[] = []
+      let maxInitialTime = 0
+      
+      // Separate the initial (earliest) log of each part from updates
+      partHistories.forEach(history => {
+        if (history.length === 0) return
+        const sorted = [...history].sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime())
+        const initialLog = sorted[0]
+        initialBalances[initialLog.part_id] = initialLog.new_value
+        currentBalances[initialLog.part_id] = initialLog.new_value
+        
+        const time = new Date(initialLog.recorded_at).getTime()
+        if (time > maxInitialTime) {
+          maxInitialTime = time
+        }
+        
+        updateLogs.push(...sorted.slice(1))
+      })
+      
+      const timeline: { recorded_at: string; total_debt: number }[] = []
+      
+      // 1. Initial point: Original Purchase Price at purchase date or creation date
+      const earliestPropLogTime = p.purchase_date
+        ? new Date(p.purchase_date).getTime()
+        : (historyData.value.length > 0
+            ? new Date(historyData.value[0].recorded_at).getTime()
+            : maxInitialTime - 60000)
+        
+      if (p.original_price && p.original_price > 0) {
+        timeline.push({
+          recorded_at: new Date(earliestPropLogTime).toISOString(),
+          total_debt: p.original_price
+        })
+      }
+      
+      // 2. Initial Setup point: Sum of all parts' initial balances
+      const totalInitialDebt = Object.values(initialBalances).reduce((sum, val) => sum + val, 0)
+      timeline.push({
+        recorded_at: new Date(maxInitialTime).toISOString(),
+        total_debt: totalInitialDebt
+      })
+      
+      // 3. Balance update points chronologically
+      updateLogs.sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime())
+      for (const log of updateLogs) {
+        currentBalances[log.part_id] = log.new_value
+        const totalDebt = Object.values(currentBalances).reduce((sum, val) => sum + val, 0)
+        timeline.push({
+          recorded_at: log.recorded_at,
+          total_debt: totalDebt
+        })
+      }
+      
+      debtHistoryData.value = timeline
+    } catch (err) {
+      console.error("Failed to load debt history:", err)
+    } finally {
+      loadingDebtHistory.value = false
+    }
+  }
+}
+
 async function loadHistoryForProperties() {
   if (store.properties.length > 0) {
     loadingHistory.value = true
@@ -121,6 +219,7 @@ async function loadHistoryForProperties() {
     } finally {
       loadingHistory.value = false
     }
+    await loadDebtHistory()
   }
 }
 
@@ -138,6 +237,7 @@ async function onSaved(form: any) {
         original_price: form.original_price,
         ownership_percent: form.ownership_percent,
         notes: form.notes,
+        purchase_date: form.purchase_date,
       })
       editingProperty.value = null
     } else {
@@ -148,6 +248,7 @@ async function onSaved(form: any) {
         property_value: form.property_value,
         ownership_percent: form.ownership_percent,
         notes: form.notes,
+        purchase_date: form.purchase_date,
       })
     }
     await onPropertyUpdated()
@@ -231,6 +332,12 @@ onMounted(async () => {
   flex-direction: column;
   gap: var(--space-4);
 }
+.property-charts-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  height: 100%;
+}
 .property-chart-card {
   display: flex;
   flex-direction: column;
@@ -252,7 +359,7 @@ onMounted(async () => {
 }
 .chart-wrap {
   flex: 1;
-  min-height: 300px;
+  min-height: 250px;
   position: relative;
 }
 

@@ -21,6 +21,12 @@ def _run_migrations():
             conn.exec_driver_sql("ALTER TABLE accounts ADD COLUMN initial_investment REAL")
             conn.commit()
 
+        # properties table
+        prop_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(properties)")]
+        if "purchase_date" not in prop_cols:
+            conn.exec_driver_sql("ALTER TABLE properties ADD COLUMN purchase_date DATETIME")
+            conn.commit()
+
         # Check if old tables exist and need data migration
         table_names = [row[0] for row in conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table'")]
         

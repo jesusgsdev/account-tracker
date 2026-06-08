@@ -290,6 +290,7 @@ class PropertyCreate(BaseModel):
     property_value: float
     ownership_percent: float = 100.0
     notes: Optional[str] = None
+    purchase_date: Optional[datetime] = None
 
     @field_validator("property_value")
     @classmethod
@@ -312,6 +313,7 @@ class PropertyUpdate(BaseModel):
     original_price: Optional[float] = None
     ownership_percent: Optional[float] = None
     notes: Optional[str] = None
+    purchase_date: Optional[datetime] = None
     is_active: Optional[bool] = None
 
 
@@ -347,6 +349,7 @@ class PropertyResponse(BaseModel):
     property_value: float
     ownership_percent: float
     notes: Optional[str]
+    purchase_date: Optional[datetime]
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -393,6 +396,7 @@ class PropertyResponse(BaseModel):
             id=p.id, name=p.name, property_address=p.property_address,
             original_price=p.original_price, property_value=p.property_value,
             ownership_percent=p.ownership_percent, notes=p.notes,
+            purchase_date=p.purchase_date,
             is_active=p.is_active, created_at=p.created_at, updated_at=p.updated_at,
             mortgage_parts=parts,
             total_outstanding=total_out, equity=equity,

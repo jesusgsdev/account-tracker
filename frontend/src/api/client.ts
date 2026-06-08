@@ -92,6 +92,7 @@ export interface Property {
   property_value: number
   ownership_percent: number
   notes: string | null
+  purchase_date: string | null
   is_active: boolean
   created_at: string
   updated_at: string
@@ -201,11 +202,12 @@ export const api = {
       property_value: number
       ownership_percent?: number
       notes?: string
+      purchase_date?: string | null
     }) => request<Property>('/properties', { method: 'POST', body: JSON.stringify(payload) }),
 
     get: (id: number) => request<Property>(`/properties/${id}`),
 
-    updateMeta: (id: number, payload: Partial<Pick<Property, 'name' | 'property_address' | 'original_price' | 'ownership_percent' | 'notes'>>) =>
+    updateMeta: (id: number, payload: Partial<Pick<Property, 'name' | 'property_address' | 'original_price' | 'ownership_percent' | 'notes' | 'purchase_date'>>) =>
       request<Property>(`/properties/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
 
     updateValue: (id: number, new_value: number, note?: string) =>

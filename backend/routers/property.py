@@ -34,6 +34,7 @@ def create_property(payload: PropertyCreate, db: Session = Depends(get_db)):
         property_value=payload.property_value,
         ownership_percent=payload.ownership_percent,
         notes=payload.notes,
+        purchase_date=payload.purchase_date,
     )
     db.add(p)
     db.flush()

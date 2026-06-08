@@ -22,14 +22,19 @@
 
               <div class="form-row">
                 <div class="form-group">
+                  <label class="form-label" for="prop-purchase-date">Purchase Date</label>
+                  <input id="prop-purchase-date" v-model="form.purchase_date" type="date" class="form-input" />
+                </div>
+                <div class="form-group">
                   <label class="form-label" for="prop-original">Original Purchase Price (£)</label>
                   <input id="prop-original" v-model.number="form.original_price" type="number" min="0" step="1" class="form-input" placeholder="e.g. 280000" />
                 </div>
-                <div class="form-group">
-                  <label class="form-label" for="prop-value">Current Estimated Value (£) *</label>
-                  <input id="prop-value" v-model.number="form.property_value" type="number" min="0" step="1" class="form-input" placeholder="e.g. 300000" :disabled="isEdit" />
-                  <p v-if="isEdit" class="text-xs text-muted mt-1">Value changes are tracked via the "Update Value" button on the card.</p>
-                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="prop-value">Current Estimated Value (£) *</label>
+                <input id="prop-value" v-model.number="form.property_value" type="number" min="0" step="1" class="form-input" placeholder="e.g. 300000" :disabled="isEdit" />
+                <p v-if="isEdit" class="text-xs text-muted mt-1">Value changes are tracked via the "Update Value" button on the card.</p>
               </div>
 
               <div class="form-group">
@@ -79,6 +84,7 @@ const saving = ref(false)
 const defaultForm = () => ({
   name: '',
   property_address: '',
+  purchase_date: '',
   original_price: null as number | null,
   property_value: 0,
   ownership_percent: 100,
@@ -92,6 +98,7 @@ watch(() => props.property, (p) => {
     form.value = {
       name: p.name,
       property_address: p.property_address ?? '',
+      purchase_date: p.purchase_date ? p.purchase_date.split('T')[0] : '',
       original_price: p.original_price ?? null,
       property_value: p.property_value,
       ownership_percent: p.ownership_percent,
@@ -122,6 +129,7 @@ async function save() {
       property_address: form.value.property_address || undefined,
       notes: form.value.notes || undefined,
       original_price: form.value.original_price ?? undefined,
+      purchase_date: form.value.purchase_date || undefined,
     })
     close()
   } finally {
