@@ -58,6 +58,15 @@
 
               <div class="section-divider">
                 <span>Remaining Term</span>
+                <button
+                  v-if="canAutoCalculateTerm"
+                  type="button"
+                  class="btn btn-xs btn-ghost btn-calc-term"
+                  style="margin-left: var(--space-2); color: var(--accent-light);"
+                  @click="autoCalculateTerm"
+                >
+                  ⚡ Auto-calculate
+                </button>
               </div>
               <div class="form-row">
                 <div class="form-group">
@@ -141,6 +150,55 @@ watch(() => props.part, (p) => {
     form.value = defaultForm()
   }
 }, { immediate: true })
+
+const canAutoCalculateTerm = computed(() => {
+  const f = form.value
+  if (f.mortgage_type !== 'REPAYMENT') return false
+  if (f.outstanding_balance <= 0) return false
+  if (f.interest_rate === null || f.interest_rate < 0) return false
+  if (f.monthly_payment === null || f.monthly_payment <= 0) return false
+  
+  // Payment must cover at least the monthly interest
+  const monthlyInterestRate = f.interest_rate / 100 / 12
+  return f.monthly_payment > f.outstanding_balance * monthlyInterestRate
+})
+
+function autoCalculateTerm() {
+  if (!canAutoCalculateTerm.value) return
+  const P = form.value.outstanding_balance
+  const r = form.value.interest_rate!
+  const M = form.value.monthly_payment!
+
+  const i = r / 100 / 12
+  if (i === 0) {
+    const totalMonths = Math.round(P / M)
+    form.value.term_years = Math.floor(totalMonths / 12)
+    form.value.term_months = totalMonths % 12
+    return
+  }
+
+  const val = M / (M - P * i)
+  const totalMonths = Math.round(Math.log(val) / Math.log(1 + i))
+  if (totalMonths > 0 && totalMonths < 1200) {
+    form.value.term_years = Math.floor(totalMonths / 12)
+    form.value.term_months = totalMonths % 12
+  }
+}
+
+// Watch inputs to auto-fill term fields when they are currently empty
+watch(
+  [
+    () => form.value.outstanding_balance,
+    () => form.value.interest_rate,
+    () => form.value.monthly_payment,
+    () => form.value.mortgage_type
+  ],
+  () => {
+    if (form.value.term_years === null && form.value.term_months === null) {
+      autoCalculateTerm()
+    }
+  }
+)
 
 const isValid = computed(() =>
   form.value.name.trim().length > 0 &&
