@@ -123,13 +123,13 @@ class AccountResponse(BaseModel):
 
 class AuditLogResponse(BaseModel):
     id: int
-    account_id: int
+    account_id: Optional[int] = None
     account_name: Optional[str] = None
     previous_value: float
     new_value: float
     change_amount: float
-    change_percent: Optional[float]
-    note: Optional[str]
+    change_percent: Optional[float] = None
+    note: Optional[str] = None
     recorded_at: datetime
 
     model_config = {"from_attributes": True}

@@ -20,7 +20,7 @@ export interface Account {
 
 export interface AuditLog {
   id: number
-  account_id: number
+  account_id: number | null
   account_name: string | null
   previous_value: number
   new_value: number
