@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.backend
+    volumes:
+      # Persists the SQLite database to a local database file on DSM
+      - ./backend/tracker.db:/app/tracker.db
+      - ./backend/tracker.db-wal:/app/tracker.db-wal
+      - ./backend/tracker.db-shm:/app/tracker.db-shm
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: always

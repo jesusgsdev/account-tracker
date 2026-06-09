@@ -23,8 +23,8 @@ echo "  → Installing Python dependencies…"
 source venv/bin/activate
 pip install -q -r requirements.txt
 
-echo "  → Starting FastAPI backend on http://localhost:8000"
-uvicorn main:app --reload --port 8000 &
+echo "  → Starting FastAPI backend on http://localhost:8000 (listening on all interfaces)"
+uvicorn main:app --reload --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
 
 # ── Frontend ──────────────────────────────────────────────────────────────────

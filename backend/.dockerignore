@@ -1,0 +1,11 @@
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.gitignore
+tracker.db
+tracker.db-wal
+tracker.db-shm
+data

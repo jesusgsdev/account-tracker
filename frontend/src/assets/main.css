@@ -322,10 +322,11 @@ input, textarea, select {
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(4px);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   z-index: 1000;
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-4) var(--space-12) var(--space-4);
+  overflow-y: auto;
 }
 
 .modal {
@@ -335,6 +336,8 @@ input, textarea, select {
   width: 100%;
   max-width: 480px;
   box-shadow: var(--shadow-lg);
+  margin-top: auto;
+  margin-bottom: auto;
 }
 
 .modal-header {
@@ -358,6 +361,30 @@ input, textarea, select {
   gap: var(--space-3);
   padding: var(--space-4) var(--space-6);
   border-top: 1px solid var(--bg-border);
+}
+
+@media (max-width: 576px) {
+  .modal-header {
+    padding: var(--space-4) var(--space-5);
+  }
+  .modal-body {
+    padding: var(--space-5);
+    gap: var(--space-4);
+  }
+  .modal-footer {
+    padding: var(--space-5);
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+  .modal-footer .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .modal-footer .mr-auto {
+    margin-right: 0;
+    margin-top: var(--space-2);
+  }
 }
 
 /* --- App layout --- */
