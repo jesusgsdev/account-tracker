@@ -1,6 +1,6 @@
 <template>
-  <div class="app-layout">
-    <Sidebar />
+  <div class="app-layout" :class="{ 'login-layout': route.name === 'login' }">
+    <Sidebar v-if="route.name !== 'login'" />
     <div class="main-content">
       <RouterView v-slot="{ Component }">
         <Transition name="fade" mode="out-in">
@@ -8,11 +8,14 @@
         </Transition>
       </RouterView>
     </div>
-    <MobileNav />
+    <MobileNav v-if="route.name !== 'login'" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { useRoute } from 'vue-router'
 import Sidebar from '@/components/layout/Sidebar.vue'
 import MobileNav from '@/components/layout/MobileNav.vue'
+
+const route = useRoute()
 </script>

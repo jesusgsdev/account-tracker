@@ -403,6 +403,11 @@ input, textarea, select {
   min-height: 100dvh;
 }
 
+.login-layout .main-content {
+  margin-left: 0 !important;
+  margin-bottom: 0 !important;
+}
+
 .page-content {
   flex: 1;
   padding: var(--space-8);

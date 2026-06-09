@@ -39,14 +39,26 @@
     </nav>
 
     <div class="sidebar-footer">
+      <button class="btn-logout" @click="handleLogout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+        <span>Sign Out</span>
+      </button>
       <div class="sidebar-version">v1.0 · Local First</div>
     </div>
   </aside>
 </template>
 
 <script setup lang="ts">
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 const route = useRoute()
+const router = useRouter()
+
+function handleLogout() {
+  sessionStorage.removeItem('isLoggedIn')
+  router.push('/login')
+}
 </script>
 
 <style scoped>
@@ -121,6 +133,29 @@ const route = useRoute()
 .sidebar-footer {
   padding: var(--space-4) var(--space-6);
   border-top: 1px solid var(--bg-border);
+}
+
+.btn-logout {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  padding: var(--space-2) 0;
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  margin-bottom: var(--space-2);
+}
+.btn-logout svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+}
+.btn-logout:hover {
+  color: var(--negative);
 }
 
 .sidebar-version {

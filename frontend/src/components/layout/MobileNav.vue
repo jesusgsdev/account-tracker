@@ -30,12 +30,25 @@
       </svg>
       <span>Audit</span>
     </RouterLink>
+
+    <button class="mobile-nav-item btn-logout-mobile" @click="handleLogout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+      </svg>
+      <span>Sign Out</span>
+    </button>
   </nav>
 </template>
 
 <script setup lang="ts">
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 const route = useRoute()
+const router = useRouter()
+
+function handleLogout() {
+  sessionStorage.removeItem('isLoggedIn')
+  router.push('/login')
+}
 </script>
 
 <style scoped>
@@ -75,6 +88,15 @@ const route = useRoute()
 
 .mobile-nav-item.active { color: var(--accent-light); }
 .mobile-nav-item:hover  { color: var(--text-primary); }
+
+.btn-logout-mobile {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.btn-logout-mobile:hover {
+  color: var(--negative) !important;
+}
 
 @media (max-width: 768px) {
   .mobile-nav { display: flex; }
