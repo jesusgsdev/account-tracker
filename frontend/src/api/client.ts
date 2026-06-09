@@ -132,6 +132,52 @@ export interface MortgagePartAuditLog {
   recorded_at: string
 }
 
+export interface ShareHolding {
+  id: number
+  account_id: number
+  ticker: string
+  display_name: string | null
+  quantity: number
+  avg_cost: number | null
+  currency: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface LiveHolding {
+  id: number
+  account_id: number
+  ticker: string
+  display_name: string | null
+  quantity: number
+  avg_cost: number | null
+  live_price: number | null
+  currency: string | null
+  live_value_native: number | null
+  live_value_gbp: number | null
+  cost_basis: number | null
+  pnl_native: number | null
+  pnl_percent: number | null
+  short_name: string | null
+  day_change_pct: number | null
+  market_state: string | null
+  price_error: string | null
+  is_stale: boolean
+  last_price_at: string | null
+}
+
+export interface PortfolioLive {
+  account_id: number
+  holdings: LiveHolding[]
+  total_cost_basis_gbp: number | null
+  total_live_value_gbp: number | null
+  total_pnl_gbp: number | null
+  total_pnl_percent: number | null
+  gbpusd_rate: number | null
+  last_refreshed: string
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -245,5 +291,40 @@ export const api = {
     deletePart: (partId: number) => request<void>(`/properties/parts/${partId}`, { method: 'DELETE' }),
 
     partHistory: (partId: number) => request<MortgagePartAuditLog[]>(`/properties/parts/${partId}/history`),
+  },
+
+  shares: {
+    list: (accountId: number) =>
+      request<ShareHolding[]>(`/shares/${accountId}`),
+
+    create: (accountId: number, payload: {
+      ticker: string
+      display_name?: string
+      quantity: number
+      avg_cost?: number
+      notes?: string
+    }) => request<ShareHolding>(`/shares/${accountId}`, { method: 'POST', body: JSON.stringify(payload) }),
+
+    update: (holdingId: number, payload: {
+      ticker?: string
+      display_name?: string
+      quantity?: number
+      avg_cost?: number
+      notes?: string
+    }) => request<ShareHolding>(`/shares/holding/${holdingId}`, { method: 'PUT', body: JSON.stringify(payload) }),
+
+    delete: (holdingId: number) =>
+      request<void>(`/shares/holding/${holdingId}`, { method: 'DELETE' }),
+
+    live: (accountId: number) =>
+      request<PortfolioLive>(`/shares/${accountId}/live`),
+
+    allLive: () =>
+      request<PortfolioLive[]>(`/shares/all-live`),
+
+    sync: (accountId: number) =>
+      request<{ previous_value: number; new_value: number; change_amount: number; tickers_synced: string[]; gbpusd_rate: number | null }>(
+        `/shares/${accountId}/sync`, { method: 'POST' }
+      ),
   },
 }

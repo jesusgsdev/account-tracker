@@ -16,8 +16,13 @@
 
       <RouterLink to="/accounts" class="nav-item" :class="{ active: route.name === 'accounts' }">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-          <polyline points="9 22 9 12 15 12 15 22"/>
+          <line x1="3" y1="22" x2="21" y2="22"/>
+          <line x1="6" y1="18" x2="6" y2="11"/>
+          <line x1="10" y1="18" x2="10" y2="11"/>
+          <line x1="14" y1="18" x2="14" y2="11"/>
+          <line x1="18" y1="18" x2="18" y2="11"/>
+          <polygon points="12 2 2 7 22 7"/>
+          <path d="M5 22v-4h14v4"/>
         </svg>
         <span>Accounts</span>
       </RouterLink>
@@ -28,6 +33,14 @@
           <polyline points="9 22 9 12 15 12 15 22"/>
         </svg>
         <span>Property</span>
+      </RouterLink>
+
+      <RouterLink to="/market-trackers" class="nav-item" :class="{ active: route.name === 'market-trackers' }">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 6l-9.5 9.5-5-5L1 18"/>
+          <polyline points="17 6 23 6 23 12"/>
+        </svg>
+        <span>Market Trackers</span>
       </RouterLink>
 
       <RouterLink to="/audit" class="nav-item" :class="{ active: route.name === 'audit' }">

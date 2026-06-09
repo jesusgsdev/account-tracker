@@ -23,6 +23,7 @@ class Account(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     audit_logs = relationship("AuditLog", back_populates="account", cascade="all, delete-orphan")
+    share_holdings = relationship("ShareHolding", back_populates="account", cascade="all, delete-orphan")
 
 
 class AuditLog(Base):
@@ -38,6 +39,34 @@ class AuditLog(Base):
     recorded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     account = relationship("Account", back_populates="audit_logs")
+
+
+
+# ── Share Holdings ────────────────────────────────────────────────────────────
+
+class ShareHolding(Base):
+    """Tracks individual share positions within an investment account."""
+    __tablename__ = "share_holdings"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    account_id   = Column(Integer, ForeignKey("accounts.id"), nullable=False)
+
+    ticker       = Column(String(20), nullable=False)       # e.g. "JPM", "TROW", "HSBA.L"
+    display_name = Column(String(255), nullable=True)        # optional friendly label
+    quantity     = Column(Float, nullable=False)              # number of shares held
+    avg_cost     = Column(Float, nullable=True)              # average cost per share (ticker currency)
+    currency     = Column(String(10), nullable=True)         # "USD", "GBP", "GBX" — inferred from suffix
+    notes        = Column(Text, nullable=True)
+
+    # Last successfully fetched price (persisted so stale data survives restarts)
+    last_price          = Column(Float, nullable=True)
+    last_price_currency = Column(String(10), nullable=True)
+    last_price_at       = Column(DateTime, nullable=True)
+
+    created_at   = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    account = relationship("Account", back_populates="share_holdings")
 
 
 # ── Property / Mortgage ───────────────────────────────────────────────────────

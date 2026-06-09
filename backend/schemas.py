@@ -406,3 +406,77 @@ class PropertyResponse(BaseModel):
         )
 
 
+# ── Share Holding schemas ─────────────────────────────────────────────────────
+
+class ShareHoldingCreate(BaseModel):
+    ticker: str
+    display_name: Optional[str] = None
+    quantity: float
+    avg_cost: Optional[float] = None   # cost per share in ticker's native currency
+    notes: Optional[str] = None
+
+
+class ShareHoldingUpdate(BaseModel):
+    ticker: Optional[str] = None
+    display_name: Optional[str] = None
+    quantity: Optional[float] = None
+    avg_cost: Optional[float] = None
+    notes: Optional[str] = None
+
+
+class ShareHoldingResponse(BaseModel):
+    id: int
+    account_id: int
+    ticker: str
+    display_name: Optional[str]
+    quantity: float
+    avg_cost: Optional[float]
+    currency: Optional[str]
+    notes: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class LiveHoldingResponse(BaseModel):
+    """A holding enriched with live price data from Yahoo Finance."""
+    id: int
+    account_id: int
+    ticker: str
+    display_name: Optional[str]
+    quantity: float
+    avg_cost: Optional[float]
+
+    # Live price data
+    live_price: Optional[float]          # price in native currency
+    currency: Optional[str]              # e.g. "USD", "GBP", "GBX"
+    live_value_native: Optional[float]   # quantity * live_price
+    live_value_gbp: Optional[float]      # converted to GBP
+
+    # P&L vs avg_cost (in native currency terms)
+    cost_basis: Optional[float]          # quantity * avg_cost
+    pnl_native: Optional[float]          # live_value_native - cost_basis
+    pnl_percent: Optional[float]
+
+    # Market metadata
+    short_name: Optional[str]
+    day_change_pct: Optional[float]      # today's % change
+    market_state: Optional[str]          # "REGULAR", "CLOSED", "PRE", "POST"
+    price_error: Optional[str]           # set if fetch failed for this ticker
+
+    # Stale-price fallback — populated when live fetch fails but DB has a last-known price
+    is_stale: bool = False               # True = price is from the DB, not live
+    last_price_at: Optional[datetime] = None  # when the stale price was last fetched
+
+
+class PortfolioLiveResponse(BaseModel):
+    """Live portfolio for one account."""
+    account_id: int
+    holdings: List[LiveHoldingResponse]
+    total_cost_basis_gbp: Optional[float]   # sum of cost bases in GBP
+    total_live_value_gbp: Optional[float]   # sum of live values in GBP
+    total_pnl_gbp: Optional[float]
+    total_pnl_percent: Optional[float]
+    gbpusd_rate: Optional[float]            # the FX rate used
+    last_refreshed: datetime

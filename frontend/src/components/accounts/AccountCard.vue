@@ -5,6 +5,15 @@
         {{ account.account_type.replace('_', ' ') }}
       </div>
       <div class="card-actions">
+        <button
+          v-if="['INVESTMENTS', 'RETIREMENT'].includes(account.category)"
+          class="btn btn-sm btn-ghost holdings-toggle"
+          :class="{ active: showHoldings }"
+          @click="showHoldings = !showHoldings"
+          :title="showHoldings ? 'Hide holdings' : 'Show share holdings'"
+        >
+          📊
+        </button>
         <button class="btn btn-sm btn-secondary" @click="$emit('edit', account)">Edit</button>
         <button class="btn btn-sm btn-primary" @click="$emit('updateValue', account)">Update Value</button>
       </div>
@@ -37,18 +46,32 @@
     <div class="card-footer">
       <span class="text-xs text-muted">Updated {{ updatedFormatted }}</span>
     </div>
+
+    <!-- Share Holdings Panel (INVESTMENTS & RETIREMENT) -->
+    <transition name="panel-slide">
+      <SharesPanel
+        v-if="showHoldings && ['INVESTMENTS', 'RETIREMENT'].includes(account.category)"
+        :account-id="account.id"
+        :account-name="account.name"
+        @synced="onSynced"
+      />
+    </transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import type { Account } from '@/api/client'
+import SharesPanel from './SharesPanel.vue'
 
 const props = defineProps<{ account: Account }>()
-defineEmits<{
+const emit = defineEmits<{
   updateValue: [account: Account]
   edit: [account: Account]
+  refreshAccount: [id: number]
 }>()
+
+const showHoldings = ref(false)
 
 const formattedValue = computed(() =>
   props.account.current_value.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -65,6 +88,11 @@ const showProfit = computed(() =>
   props.account.profit_amount !== null &&
   ['INVESTMENTS', 'RETIREMENT'].includes(props.account.category)
 )
+
+function onSynced(newValue: number) {
+  // Notify parent so it can re-fetch the account and refresh the card value
+  emit('refreshAccount', props.account.id)
+}
 </script>
 
 <style scoped>
@@ -96,7 +124,22 @@ const showProfit = computed(() =>
   margin-bottom: var(--space-1);
 }
 
-.card-actions { display: flex; gap: var(--space-2); }
+.card-actions { display: flex; gap: var(--space-2); align-items: center; }
+
+.holdings-toggle {
+  padding: var(--space-1) var(--space-2);
+  font-size: 1rem;
+  line-height: 1;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  opacity: 0.5;
+}
+.holdings-toggle:hover,
+.holdings-toggle.active {
+  opacity: 1;
+  background: var(--cat-investments-bg);
+  color: var(--cat-investments);
+}
 
 .card-name {
   font-size: var(--font-size-base);
@@ -178,5 +221,19 @@ const showProfit = computed(() =>
   font-size: var(--font-size-xs);
   color: var(--text-muted);
   margin-top: var(--space-1);
+}
+
+/* Holdings panel slide animation */
+.panel-slide-enter-active, .panel-slide-leave-active {
+  transition: all 0.25s ease;
+  overflow: hidden;
+}
+.panel-slide-enter-from, .panel-slide-leave-to {
+  opacity: 0;
+  max-height: 0;
+}
+.panel-slide-enter-to, .panel-slide-leave-from {
+  opacity: 1;
+  max-height: 600px;
 }
 </style>

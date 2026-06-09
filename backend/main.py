@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
 from routers import accounts, audit, dashboard
 from routers import property as property_router
+from routers import shares as shares_router
 
 # Create all tables on startup
 Base.metadata.create_all(bind=engine)
@@ -25,6 +26,18 @@ def _run_migrations():
         prop_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(properties)")]
         if "purchase_date" not in prop_cols:
             conn.exec_driver_sql("ALTER TABLE properties ADD COLUMN purchase_date DATETIME")
+            conn.commit()
+
+        # share_holdings table — new columns for stale-price persistence
+        table_names_early = [row[0] for row in conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table'")]
+        if "share_holdings" in table_names_early:
+            sh_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(share_holdings)")]
+            if "last_price" not in sh_cols:
+                conn.exec_driver_sql("ALTER TABLE share_holdings ADD COLUMN last_price REAL")
+            if "last_price_currency" not in sh_cols:
+                conn.exec_driver_sql("ALTER TABLE share_holdings ADD COLUMN last_price_currency TEXT")
+            if "last_price_at" not in sh_cols:
+                conn.exec_driver_sql("ALTER TABLE share_holdings ADD COLUMN last_price_at DATETIME")
             conn.commit()
 
         # Check if old tables exist and need data migration
@@ -109,6 +122,7 @@ app.include_router(accounts.router)
 app.include_router(audit.router)
 app.include_router(dashboard.router)
 app.include_router(property_router.router)
+app.include_router(shares_router.router)
 
 
 @app.get("/api/health")

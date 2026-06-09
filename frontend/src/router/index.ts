@@ -19,6 +19,11 @@ const router = createRouter({
       component: () => import('@/views/AccountsView.vue'),
     },
     {
+      path: '/market-trackers',
+      name: 'market-trackers',
+      component: () => import('@/views/MarketTrackersView.vue'),
+    },
+    {
       path: '/audit',
       name: 'audit',
       component: () => import('@/views/AuditView.vue'),

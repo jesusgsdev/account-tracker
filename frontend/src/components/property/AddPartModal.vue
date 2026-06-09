@@ -96,6 +96,14 @@
         </Transition>
       </div>
     </Transition>
+
+    <ConfirmModal
+      v-model="showDeleteConfirm"
+      title="Delete Mortgage Part"
+      :message="`Are you sure you want to delete mortgage part &quot;${props.part?.name}&quot;?`"
+      confirmText="Delete"
+      @confirm="executeDelete"
+    />
   </Teleport>
 </template>
 
@@ -103,6 +111,7 @@
 import { ref, computed, watch } from 'vue'
 import type { MortgagePart } from '@/api/client'
 import { useMortgageStore } from '@/stores/mortgage'
+import ConfirmModal from '@/components/layout/ConfirmModal.vue'
 
 const props = defineProps<{
   modelValue: boolean
@@ -118,6 +127,7 @@ const emit = defineEmits<{
 const store = useMortgageStore()
 const isEdit = computed(() => !!props.part)
 const saving = ref(false)
+const showDeleteConfirm = ref(false)
 
 const defaultForm = () => ({
   name: '',
@@ -240,19 +250,22 @@ async function save() {
   }
 }
 
-async function handleDelete() {
+function handleDelete() {
   if (!props.part) return
-  if (confirm(`Are you sure you want to delete mortgage part "${props.part.name}"?`)) {
-    saving.value = true
-    try {
-      await store.deletePart(props.propertyId, props.part.id)
-      emit('saved')
-      close()
-    } catch (err: any) {
-      alert(err.message)
-    } finally {
-      saving.value = false
-    }
+  showDeleteConfirm.value = true
+}
+
+async function executeDelete() {
+  if (!props.part) return
+  saving.value = true
+  try {
+    await store.deletePart(props.propertyId, props.part.id)
+    emit('saved')
+    close()
+  } catch (err: any) {
+    alert(err.message)
+  } finally {
+    saving.value = false
   }
 }
 </script>

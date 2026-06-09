@@ -92,6 +92,14 @@
       @saved="onSaved"
       @delete="onDelete"
     />
+
+    <ConfirmModal
+      v-model="showDeleteConfirm"
+      title="Delete Property"
+      :message="`Are you sure you want to remove &quot;${editingProperty?.name}&quot;? This will delete the property and all its mortgage parts.`"
+      confirmText="Remove"
+      @confirm="executeDelete"
+    />
   </div>
 </template>
 
@@ -103,11 +111,13 @@ import MortgageCard from '@/components/property/MortgageCard.vue'
 import AddPropertyModal from '@/components/property/AddPropertyModal.vue'
 import PropertyValueChart from '@/components/property/PropertyValueChart.vue'
 import PropertyDebtChart from '@/components/property/PropertyDebtChart.vue'
+import ConfirmModal from '@/components/layout/ConfirmModal.vue'
 
 const store = useMortgageStore()
 
 const showAdd = ref(false)
 const editingProperty = ref<Property | null>(null)
+const showDeleteConfirm = ref(false)
 const historyData = ref<PropertyValueAuditLog[]>([])
 const loadingHistory = ref(false)
 
@@ -257,17 +267,20 @@ async function onSaved(form: any) {
   }
 }
 
-async function onDelete() {
+function onDelete() {
   if (!editingProperty.value) return
-  if (confirm(`Are you sure you want to remove "${editingProperty.value.name}"? This will delete the property and all its mortgage parts.`)) {
-    try {
-      await store.deleteProperty(editingProperty.value.id)
-      showAdd.value = false
-      editingProperty.value = null
-      await onPropertyUpdated()
-    } catch (err: any) {
-      alert(err.message)
-    }
+  showDeleteConfirm.value = true
+}
+
+async function executeDelete() {
+  if (!editingProperty.value) return
+  try {
+    await store.deleteProperty(editingProperty.value.id)
+    showAdd.value = false
+    editingProperty.value = null
+    await onPropertyUpdated()
+  } catch (err: any) {
+    alert(err.message)
   }
 }
 
