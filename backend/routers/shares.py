@@ -61,12 +61,147 @@ _SUFFIX_CURRENCY: Dict[str, str] = {
 
 def _infer_currency(ticker: str) -> str:
     t = ticker.upper()
+    # L&G fund codes always return GBP (prices scraped in pence, then /100)
+    if t.startswith("LG:"):
+        return "GBP"
     if t.startswith("0P") and t.endswith(".L"):
         return "GBP"
     for suffix, ccy in _SUFFIX_CURRENCY.items():
         if t.endswith(suffix.upper()):
             return ccy
     return "USD"
+
+
+# ── L&G Fund Centre scraper ───────────────────────────────────────────────────
+# Ticker format: "LG:<FUND_CODE>"  e.g.  "LG:BC03"  (Mastertrust Global Dev Eq)
+# The fund page embeds the price in a <strong> next to the "Price" label.
+# We pass the shareclass code as the default isin_code query parameter so the
+# page loads the correct share class immediately.
+
+LG_BASE_URL = "https://fundcentres.landg.com/en/uk/workplace-employee/fund-centre/"
+LG_FUND_SLUGS: Dict[str, str] = {
+    # Map fund-code → URL slug (add more as needed)
+    "BC03": "Global-Developed-Equity-Index-Fund",
+    "BAW3": "Global-Developed-Equity-Index-Fund",
+    "BAVY": "Global-Developed-Equity-Index-Fund",
+}
+
+
+def _fetch_landg_price(fund_code: str) -> Dict[str, Any]:
+    """
+    Scrape the L&G Fund Centre page for a given internal fund code (e.g. 'BC03').
+    Returns a price-info dict compatible with _fetch_batch_prices() output.
+    Prices on the page are in pence; we divide by 100 to return GBP.
+    """
+    slug = LG_FUND_SLUGS.get(fund_code.upper())
+    if not slug:
+        return {
+            "price": None, "currency": "GBP",
+            "short_name": f"L&G {fund_code}",
+            "day_change_pct": None, "market_state": None,
+            "error": f"No URL slug configured for L&G fund code '{fund_code}'",
+        }
+
+    url = f"{LG_BASE_URL}{slug}/?isin_code={fund_code}"
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/125.0.0.0 Safari/537.36"
+            ),
+            "Accept-Language": "en-GB,en;q=0.9",
+        }
+        resp = requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        # The page renders price rows like:
+        #   <div data-fund-id="749" data-shareclass-id="...">...
+        #     <span class=" price">Price</span><strong>3037.37p</strong>
+        # We look for the <strong> that follows a <span class="price"> label
+        # inside the shareclass row matching our fund code.
+        price_pence: Optional[float] = None
+        as_at: Optional[str] = None
+
+        # Strategy 1: resolve shareclass-id via the ShareClassSelector anchor
+        # which carries data-fund-code (BC03, BAW3 etc.) — the H1's
+        # data-shareclass-code holds the ISIN, not our internal fund code.
+        shareclass_id: Optional[str] = None
+        short_name = f"L&G {fund_code}"
+
+        selector_anchor = soup.find(
+            "a",
+            attrs={"data-fund-code": lambda v: v and v.strip().upper() == fund_code.upper()}
+        )
+        if selector_anchor:
+            shareclass_id = selector_anchor.get("data-value")
+            # Resolve friendly name from the matching H1 tag
+            h1_tag = soup.find("h1", attrs={"data-shareclass-id": shareclass_id})
+            if h1_tag:
+                short_name = h1_tag.get("data-shareclass-name", short_name)
+
+        if shareclass_id:
+            row = soup.find(
+                "div",
+                attrs={"data-shareclass-id": shareclass_id, "class": lambda c: c and "FundRibbonPrices-row" in c}
+            )
+            if row:
+                strong_tags = row.find_all("strong")
+                for tag in strong_tags:
+                    text = tag.get_text(strip=True).replace("p", "").replace(",", "")
+                    try:
+                        price_pence = float(text)
+                        break
+                    except ValueError:
+                        pass
+                # Find the "As at" date
+                spans = row.find_all("strong")
+                if len(spans) >= 2:
+                    as_at = spans[1].get_text(strip=True)
+
+        # Strategy 2: fall back to first visible price on the page
+        if price_pence is None:
+            for strong in soup.find_all("strong"):
+                text = strong.get_text(strip=True)
+                if text.endswith("p") and text[:-1].replace(".", "").replace(",", "").isdigit():
+                    try:
+                        price_pence = float(text[:-1].replace(",", ""))
+                        break
+                    except ValueError:
+                        pass
+
+        if price_pence is None:
+            return {
+                "price": None, "currency": "GBP",
+                "short_name": short_name,
+                "day_change_pct": None, "market_state": None,
+                "error": f"Could not parse price from L&G fund page for '{fund_code}'",
+            }
+
+        price_gbp = price_pence / 100.0
+        note = f"as at {as_at}" if as_at else ""
+        return {
+            "price": price_gbp,
+            "currency": "GBP",
+            "short_name": short_name,
+            "day_change_pct": None,   # L&G page doesn't publish daily change
+            "market_state": None,
+            "error": None,
+            "price_note": note,
+        }
+
+    except Exception as exc:
+        return {
+            "price": None, "currency": "GBP",
+            "short_name": f"L&G {fund_code}",
+            "day_change_pct": None, "market_state": None,
+            "error": f"L&G scrape failed: {exc}",
+        }
 
 
 # ── GBP/USD rate ──────────────────────────────────────────────────────────────
@@ -130,6 +265,7 @@ def _to_gbp(value_native: float, currency: str, gbpusd: Optional[float]) -> Opti
 def _fetch_batch_prices(tickers: List[str]) -> Dict[str, Dict[str, Any]]:
     """
     Fetch prices for all given tickers in a single yf.download() call.
+    Tickers prefixed with "LG:" are scraped from the L&G Fund Centre instead.
     Returns dict keyed by UPPERCASE ticker.  Cached tickers are skipped.
     """
     results: Dict[str, Dict[str, Any]] = {}
@@ -144,6 +280,24 @@ def _fetch_batch_prices(tickers: List[str]) -> Dict[str, Dict[str, Any]]:
 
     if not uncached:
         return results
+
+    # ── Route L&G tickers to the scraper ─────────────────────────────────────
+    yf_tickers: List[str] = []
+    for ticker in uncached:
+        if ticker.startswith("LG:"):
+            fund_code = ticker[3:]  # strip "LG:" prefix
+            data = _fetch_landg_price(fund_code)
+            if data.get("price") is not None:
+                _cache_set(ticker, data)
+            results[ticker] = data
+        else:
+            yf_tickers.append(ticker)
+
+    if not yf_tickers:
+        return results
+
+    # Reassign uncached to only the Yahoo Finance tickers
+    uncached = yf_tickers
 
     try:
         import yfinance as yf
