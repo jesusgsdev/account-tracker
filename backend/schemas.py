@@ -149,6 +149,8 @@ class MortgageSummary(BaseModel):
     total_outstanding_share: float
     total_equity: float
     mortgage_count: int
+    total_property_value_raw: float
+    total_outstanding_raw: float
 
 
 class DashboardSummary(BaseModel):

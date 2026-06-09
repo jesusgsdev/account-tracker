@@ -53,17 +53,12 @@ def get_summary(db: Session = Depends(get_db)):
 
         last_change = None
         if cat_accounts:
-            recent_logs = (
-                db.query(AuditLog)
-                .filter(AuditLog.account_id.in_([a.id for a in cat_accounts]))
-                .order_by(desc(AuditLog.recorded_at))
-                .limit(5)
-                .all()
+            total_invested = sum(
+                a.initial_investment if a.initial_investment is not None else a.current_value
+                for a in cat_accounts
             )
-            if recent_logs:
-                total_change = sum(l.change_amount for l in recent_logs)
-                prev_total = cat_total - total_change
-                last_change = ((total_change / prev_total) * 100) if prev_total != 0 else None
+            if total_invested > 0:
+                last_change = ((cat_total - total_invested) / total_invested) * 100
 
         categories.append(CategorySummary(
             category=cat,
@@ -81,11 +76,18 @@ def get_summary(db: Session = Depends(get_db)):
             sum(pt.outstanding_balance for pt in p.mortgage_parts if pt.is_active) * (p.ownership_percent / 100.0)
             for p in properties
         )
+        pv_raw = sum(p.property_value for p in properties)
+        ob_raw = sum(
+            sum(pt.outstanding_balance for pt in p.mortgage_parts if pt.is_active)
+            for p in properties
+        )
         mort_summary = MortgageSummary(
             total_property_value_share=pv_share,
             total_outstanding_share=ob_share,
             total_equity=mortgage_equity,
             mortgage_count=len(properties),
+            total_property_value_raw=pv_raw,
+            total_outstanding_raw=ob_raw,
         )
 
     return DashboardSummary(

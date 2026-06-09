@@ -42,6 +42,8 @@ export interface MortgageSummary {
   total_outstanding_share: number
   total_equity: number
   mortgage_count: number
+  total_property_value_raw: number
+  total_outstanding_raw: number
 }
 
 export interface DashboardSummary {

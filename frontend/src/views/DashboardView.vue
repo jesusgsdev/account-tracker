@@ -23,6 +23,7 @@
         :total-value="summary?.total_value ?? 0"
         :accounts-total="summary?.accounts_total ?? 0"
         :mortgage-equity="summary?.mortgage_equity ?? 0"
+        :mortgage-summary="summary?.mortgage_summary ?? null"
         :last-updated="summary?.last_updated ?? null"
       />
     </div>
@@ -49,9 +50,6 @@
           <span class="text-xs text-muted">
             {{ summary.mortgage_summary.mortgage_count }} propert{{ summary.mortgage_summary.mortgage_count !== 1 ? 'ies' : 'y' }}
           </span>
-        </div>
-        <div class="cat-bar">
-          <div class="cat-bar-fill" :style="{ width: `${(summary.total_value > 0 ? (summary.mortgage_equity / summary.total_value) * 100 : 0)}%` }" />
         </div>
       </div>
     </div>
@@ -191,20 +189,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--space-4);
 }
-.cat-bar {
-  height: 4px;
-  background: var(--bg-base);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-}
-.cat-bar-fill {
-  height: 100%;
-  border-radius: var(--radius-full);
-  transition: width 0.8s ease;
-}
-.cat-property .cat-bar-fill { background: #c084fc; }
 
 @media (max-width: 1024px) {
   .charts-grid { grid-template-columns: 1fr; }

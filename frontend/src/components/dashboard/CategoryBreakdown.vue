@@ -11,9 +11,6 @@
         {{ changePercent >= 0 ? '▲' : '▼' }} {{ Math.abs(changePercent).toFixed(1) }}%
       </span>
     </div>
-    <div class="cat-bar">
-      <div class="cat-bar-fill" :style="{ width: `${barWidth}%` }" />
-    </div>
   </div>
 </template>
 
@@ -36,10 +33,6 @@ const ICONS: Record<string, string> = {
 
 const formattedValue = computed(() =>
   props.totalValue.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-)
-
-const barWidth = computed(() =>
-  props.totalPortfolio > 0 ? Math.min(100, (props.totalValue / props.totalPortfolio) * 100) : 0
 )
 </script>
 
@@ -74,7 +67,6 @@ const barWidth = computed(() =>
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--space-4);
 }
 
 .change-pill {
@@ -85,21 +77,4 @@ const barWidth = computed(() =>
 }
 .change-pill.positive { background: var(--positive-bg); color: var(--positive); }
 .change-pill.negative { background: var(--negative-bg); color: var(--negative); }
-
-.cat-bar {
-  height: 4px;
-  background: var(--bg-base);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-}
-
-.cat-bar-fill {
-  height: 100%;
-  border-radius: var(--radius-full);
-  transition: width 0.8s ease;
-}
-
-.cat-investments .cat-bar-fill { background: var(--cat-investments); }
-.cat-retirement  .cat-bar-fill { background: var(--cat-retirement); }
-.cat-savings     .cat-bar-fill { background: var(--cat-savings); }
 </style>

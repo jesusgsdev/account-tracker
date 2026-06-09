@@ -50,9 +50,20 @@
           <span class="section-count badge" :class="`badge-${category.key.toLowerCase()}`">
             {{ store.byCategory[category.key].length }}
           </span>
-          <span class="section-total">
-            £{{ categoryTotal(category.key).toLocaleString('en-GB', { minimumFractionDigits: 2 }) }}
-          </span>
+          <div class="section-metrics">
+            <div class="metric-item">
+              <span class="metric-label">Invested:</span>
+              <span class="metric-value">£{{ categoryInvested(category.key).toLocaleString('en-GB', { minimumFractionDigits: 2 }) }}</span>
+            </div>
+            <div class="metric-divider">|</div>
+            <div class="metric-item">
+              <span class="metric-label">Current:</span>
+              <span class="metric-value font-semibold">£{{ categoryTotal(category.key).toLocaleString('en-GB', { minimumFractionDigits: 2 }) }}</span>
+            </div>
+            <div v-if="categoryChange(category.key) !== null" class="change-badge" :class="categoryChange(category.key)! >= 0 ? 'change-up' : 'change-down'">
+              {{ categoryChange(category.key)! >= 0 ? '▲' : '▼' }} {{ Math.abs(categoryChange(category.key)!).toFixed(1) }}%
+            </div>
+          </div>
 
         </div>
 
@@ -130,6 +141,18 @@ const showDeleteConfirm = ref(false)
 function categoryTotal(cat: string) {
   return store.byCategory[cat as keyof typeof store.byCategory]
     .reduce((s, a) => s + a.current_value, 0)
+}
+
+function categoryInvested(cat: string) {
+  return store.byCategory[cat as keyof typeof store.byCategory]
+    .reduce((s, a) => s + (a.initial_investment !== null ? a.initial_investment : a.current_value), 0)
+}
+
+function categoryChange(cat: string) {
+  const invested = categoryInvested(cat)
+  const current = categoryTotal(cat)
+  if (invested === 0) return null
+  return ((current - invested) / invested) * 100
 }
 
 function openEditValue(account: Account) {
@@ -275,11 +298,54 @@ const formatRefreshed = computed(() => {
   font-weight: 600;
 }
 
-.section-total {
+.section-metrics {
   margin-left: auto;
-  font-size: var(--font-size-base);
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.metric-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+}
+
+.metric-label {
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
+  opacity: 0.8;
+  margin-right: 4px;
+}
+
+.metric-value {
+  color: var(--text-primary);
+}
+
+.metric-divider {
+  color: var(--bg-border);
+  user-select: none;
+}
+
+.change-badge {
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.change-up {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+}
+
+.change-down {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
 }
 
 .header-actions {
