@@ -24,6 +24,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatGBP } from '@/utils/format'
 import { parseApiDate } from '@/utils/date'
 import { ref, computed, watch } from 'vue'
 import {
@@ -38,6 +39,8 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 const props = defineProps<{
   points: HistoryPoint[]
   loading: boolean
+  /** Initially selected range in days. */
+  initialDays?: number
 }>()
 
 defineEmits<{ rangeChange: [days: number] }>()
@@ -49,7 +52,7 @@ const ranges = [
   { label: '1Y', days: 365 },
   { label: 'All', days: 3650 },
 ]
-const selectedDays = ref(365)
+const selectedDays = ref(props.initialDays ?? 365)
 
 const chartData = computed(() => {
   if (!props.points.length) return null
@@ -85,7 +88,7 @@ const chartOptions = {
       titleColor: '#94a3b8',
       bodyColor: '#f1f5f9',
       callbacks: {
-        label: (ctx: any) => ` £${ctx.raw.toLocaleString('en-GB', { minimumFractionDigits: 2 })}`,
+        label: (ctx: any) => ` ${formatGBP(ctx.raw)}`,
       },
     },
   },
@@ -100,7 +103,7 @@ const chartOptions = {
       ticks: {
         color: '#64748b',
         font: { size: 11 },
-        callback: (v: any) => `£${Number(v).toLocaleString('en-GB')}`,
+        callback: (v: any) => `${formatGBP(Number(v), { decimals: 0 })}`,
       },
       border: { color: 'transparent' },
     },

@@ -108,6 +108,10 @@
 </template>
 
 <script setup lang="ts">
+import { toRef } from 'vue'
+import { useToast } from '@/composables/useToast'
+import { apiErrorMessage } from '@/api/client'
+import { useModalKeys } from '@/composables/useModalKeys'
 import { ref, computed, watch } from 'vue'
 import type { MortgagePart } from '@/api/client'
 import { useMortgageStore } from '@/stores/mortgage'
@@ -241,10 +245,11 @@ async function save() {
     } else {
       await store.createPart(props.propertyId, payload)
     }
+    toast.success(isEdit.value ? 'Mortgage part updated' : 'Mortgage part added')
     emit('saved')
     close()
   } catch (err: any) {
-    alert(err.message)
+    toast.error(apiErrorMessage(err))
   } finally {
     saving.value = false
   }
@@ -260,14 +265,18 @@ async function executeDelete() {
   saving.value = true
   try {
     await store.deletePart(props.propertyId, props.part.id)
+    toast.success('Mortgage part deleted')
     emit('saved')
     close()
   } catch (err: any) {
-    alert(err.message)
+    toast.error(apiErrorMessage(err))
   } finally {
     saving.value = false
   }
 }
+
+const toast = useToast()
+useModalKeys(toRef(props, 'modelValue'), close, () => { if (!saving.value) save() })
 </script>
 
 <style scoped>

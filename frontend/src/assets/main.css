@@ -420,7 +420,11 @@ input, textarea, select {
 @media (max-width: 768px) {
   .main-content {
     margin-left: 0;
-    margin-bottom: var(--mobile-nav-height);
+    margin-bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
+  }
+  /* iOS Safari zooms the page when focusing inputs below 16px */
+  input, textarea, select, .form-input, .form-select, .form-textarea {
+    font-size: 16px;
   }
   .page-content {
     padding: var(--space-4);

@@ -95,6 +95,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatGBP } from '@/utils/format'
 import { parseApiDate } from '@/utils/date'
 import { computed } from 'vue'
 import type { MortgageSummary } from '@/api/client'
@@ -110,7 +111,7 @@ const props = defineProps<{
 }>()
 
 const formattedValue = computed(() =>
-  props.totalValue.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  formatGBP(props.totalValue, { decimals: 2, noSymbol: true })
 )
 
 // Calculate ownership percent dynamically from values
@@ -128,7 +129,7 @@ const realEquityBasedVal = computed(() => {
 })
 
 const formattedRealEquityBased = computed(() =>
-  realEquityBasedVal.value.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  formatGBP(realEquityBasedVal.value, { decimals: 2, noSymbol: true })
 )
 
 // Option 2: Accounts + 100% House Value - Your % of Debt
@@ -138,13 +139,13 @@ const realAssetBasedVal = computed(() => {
 })
 
 const formattedRealAssetBased = computed(() =>
-  realAssetBasedVal.value.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  formatGBP(realAssetBasedVal.value, { decimals: 2, noSymbol: true })
 )
 
 function fmtShort(v: number) {
   if (v >= 1_000_000) return (v / 1_000_000).toFixed(2) + 'M'
   if (v >= 1_000) return (v / 1_000).toFixed(1) + 'k'
-  return v.toLocaleString('en-GB', { minimumFractionDigits: 0 })
+  return formatGBP(v, { decimals: 0, noSymbol: true })
 }
 
 const lastUpdatedFormatted = computed(() => {

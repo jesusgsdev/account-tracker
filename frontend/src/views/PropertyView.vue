@@ -106,7 +106,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useMortgageStore } from '@/stores/mortgage'
-import { api, type Property, type PropertyValueAuditLog } from '@/api/client'
+import { api, apiErrorMessage, type Property, type PropertyValueAuditLog } from '@/api/client'
+import { formatGBP } from '@/utils/format'
+import { useToast } from '@/composables/useToast'
 import MortgageCard from '@/components/property/MortgageCard.vue'
 import AddPropertyModal from '@/components/property/AddPropertyModal.vue'
 import PropertyValueChart from '@/components/property/PropertyValueChart.vue'
@@ -124,8 +126,10 @@ const loadingHistory = ref(false)
 const debtHistoryData = ref<{ recorded_at: string; total_debt: number }[]>([])
 const loadingDebtHistory = ref(false)
 
+const toast = useToast()
+
 function fmt(v: number) {
-  return v.toLocaleString('en-GB', { minimumFractionDigits: 2 })
+  return formatGBP(v, { noSymbol: true })
 }
 
 function openAdd() {
@@ -234,11 +238,12 @@ async function loadHistoryForProperties() {
 }
 
 async function onPropertyUpdated() {
-  await store.fetchAll()
+  await store.fetchAll(true)
   await loadHistoryForProperties()
 }
 
 async function onSaved(form: any) {
+  const wasEdit = !!editingProperty.value
   try {
     if (editingProperty.value) {
       await store.updatePropertyMeta(editingProperty.value.id, {
@@ -261,9 +266,10 @@ async function onSaved(form: any) {
         purchase_date: form.purchase_date,
       })
     }
+    toast.success(!wasEdit ? 'Property created' : 'Property updated')
     await onPropertyUpdated()
   } catch (err: any) {
-    alert(err.message)
+    toast.error(apiErrorMessage(err))
   }
 }
 
@@ -278,9 +284,10 @@ async function executeDelete() {
     await store.deleteProperty(editingProperty.value.id)
     showAdd.value = false
     editingProperty.value = null
+    toast.success('Property deleted')
     await onPropertyUpdated()
   } catch (err: any) {
-    alert(err.message)
+    toast.error(apiErrorMessage(err))
   }
 }
 

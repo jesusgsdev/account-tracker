@@ -203,6 +203,27 @@ export interface BackupFile { filename: string; size_bytes: number; created_at: 
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+/** Error thrown for any non-2xx API response. */
+export class ApiError extends Error {
+  status: number
+  detail: string
+  constructor(status: number, detail: string) {
+    super(detail)
+    this.name = 'ApiError'
+    this.status = status
+    this.detail = detail
+  }
+}
+
+function parseDetail(status: number, body: string): string {
+  try {
+    const detail = JSON.parse(body)?.detail
+    if (typeof detail === 'string') return detail
+    if (Array.isArray(detail)) return detail.map((d: any) => d?.msg ?? JSON.stringify(d)).join('; ')
+  } catch { /* body wasn't JSON */ }
+  return body.trim() || `Request failed (${status})`
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     credentials: 'same-origin',
@@ -216,24 +237,17 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   }
   if (!res.ok) {
     const body = await res.text()
-    throw new Error(`API ${res.status}: ${body}`)
+    throw new ApiError(res.status, parseDetail(res.status, body))
   }
   if (res.status === 204) return undefined as T
   return res.json()
 }
 
-/** Extract a human-readable message from an `API <status>: {"detail": ...}` error. */
+/** Human-readable message for any thrown value (ApiError, Error, string). */
 export function apiErrorMessage(e: unknown): string {
-  const raw = e instanceof Error ? e.message : String(e ?? 'Unknown error')
-  const m = raw.match(/^API (\d+): ([\s\S]*)$/)
-  if (!m) return raw
-  const [, status, body] = m
-  try {
-    const detail = JSON.parse(body)?.detail
-    if (typeof detail === 'string') return detail
-    if (Array.isArray(detail)) return detail.map((d: any) => d?.msg ?? JSON.stringify(d)).join('; ')
-  } catch { /* body wasn't JSON */ }
-  return body.trim() || `Request failed (${status})`
+  if (e instanceof ApiError) return e.detail
+  if (e instanceof Error) return e.message
+  return String(e ?? 'Unknown error')
 }
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
@@ -421,8 +435,8 @@ export const api = {
     live: (accountId: number) =>
       request<PortfolioLive>(`/shares/${accountId}/live`),
 
-    allLive: () =>
-      request<PortfolioLive[]>(`/shares/all-live`),
+    allLive: (refresh = true) =>
+      request<PortfolioLive[]>(`/shares/all-live${refresh ? '' : '?refresh=false'}`),
 
     sync: (accountId: number) =>
       request<{ previous_value: number; new_value: number; change_amount: number; tickers_synced: string[]; stale_tickers?: string[]; gbpusd_rate: number | null; gbpusd_rate_is_fallback?: boolean; gbpusd_rate_is_stale?: boolean; gbpusd_rate_fetched_at?: string | null }>(

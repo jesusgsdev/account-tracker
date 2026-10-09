@@ -78,6 +78,7 @@ async function handleLogin() {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
+  min-height: 100dvh;
   width: 100%;
   background: radial-gradient(circle at 50% 50%, #1f2937 0%, #111827 100%);
   padding: var(--space-4);

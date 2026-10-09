@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from .fx import FxSnapshot, fetch_fx_rates
 from .prices import fetch_batch_prices, infer_currency
 from .timeutil import utcnow_naive
+from .money import round_money, money_delta, money_sum
 
 log = logging.getLogger("snapshot")
 
@@ -54,7 +55,7 @@ def fx_for_holdings(holdings) -> FxSnapshot:
 
 def value_holdings(holdings, prices: Dict[str, Dict[str, Any]], fx: FxSnapshot) -> Dict[str, Any]:
     """Value holdings in GBP. Returns total_gbp, tickers_synced, stale_tickers, unpriced, live_fetches."""
-    total = 0.0
+    parts: List[float] = []
     synced: List[str] = []
     stale: List[str] = []
     unpriced: List[str] = []
@@ -75,9 +76,9 @@ def value_holdings(holdings, prices: Dict[str, Dict[str, Any]], fx: FxSnapshot) 
         if value_gbp is None:
             unpriced.append(f"{h.ticker} (no {currency}->GBP rate)")
             continue
-        total += value_gbp
+        parts.append(value_gbp)
         synced.append(h.ticker)
-    return {"total_gbp": total, "tickers_synced": synced, "stale_tickers": stale,
+    return {"total_gbp": money_sum(parts), "tickers_synced": synced, "stale_tickers": stale,
             "unpriced": unpriced, "live_fetches": live_fetches}
 
 
@@ -123,12 +124,11 @@ def snapshot_accounts(db: Session) -> Dict[str, Any]:
                     skipped.append({"account_id": account_id, "name": account.name,
                                     "reason": f"no usable price/FX rate for {', '.join(v['unpriced'])}"})
                     continue
-                total = v["total_gbp"]
+                total = round_money(v["total_gbp"])
                 previous = account.current_value
-                change = total - previous
+                change, pct = money_delta(previous, total)
                 if abs(change) <= MIN_CHANGE_GBP:
                     continue
-                pct = (change / previous * 100) if previous != 0 else None
                 now = utcnow_naive()
                 db.add(AuditLog(
                     account_id=account.id, previous_value=previous, new_value=total,

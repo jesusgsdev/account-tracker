@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from timeutil import utcnow
+from services.money import round_money, money_delta
 from models import Account, AuditLog
 from schemas import (
     AccountCreate, AccountUpdate, AccountValueUpdate,
@@ -39,7 +40,7 @@ def create_account(payload: AccountCreate, db: Session = Depends(get_db)):
         account_type=payload.account_type,
         category=payload.category,
         provider=payload.provider,
-        current_value=payload.current_value,
+        current_value=round_money(payload.current_value),
         initial_investment=initial,
         notes=payload.notes,
     )
@@ -51,8 +52,8 @@ def create_account(payload: AccountCreate, db: Session = Depends(get_db)):
         log = AuditLog(
             account_id=account.id,
             previous_value=0.0,
-            new_value=payload.current_value,
-            change_amount=payload.current_value,
+            new_value=round_money(payload.current_value),
+            change_amount=round_money(payload.current_value),
             change_percent=None,
             note="Initial value",
             recorded_at=utcnow(),
@@ -87,9 +88,8 @@ def update_account_value(
         raise HTTPException(status_code=409, detail="Account is deleted")
 
     previous = account.current_value
-    new = payload.new_value
-    change = new - previous
-    percent = ((change / previous) * 100) if previous != 0 else None
+    new = round_money(payload.new_value)
+    change, percent = money_delta(previous, new)
 
     log = AuditLog(
         account_id=account.id,

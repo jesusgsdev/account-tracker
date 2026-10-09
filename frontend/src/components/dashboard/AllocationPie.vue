@@ -16,6 +16,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatGBP } from '@/utils/format'
 import { computed } from 'vue'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
 import { Doughnut } from 'vue-chartjs'
@@ -58,7 +59,7 @@ const chartOptions = {
       borderColor: 'rgba(255,255,255,0.08)',
       borderWidth: 1,
       callbacks: {
-        label: (ctx: any) => ` £${ctx.raw.toLocaleString('en-GB', { minimumFractionDigits: 2 })}`,
+        label: (ctx: any) => ` ${formatGBP(ctx.raw)}`,
       },
     },
   },

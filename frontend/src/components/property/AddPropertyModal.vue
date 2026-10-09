@@ -64,6 +64,8 @@
 </template>
 
 <script setup lang="ts">
+import { toRef } from 'vue'
+import { useModalKeys } from '@/composables/useModalKeys'
 import { ref, computed, watch } from 'vue'
 import type { Property } from '@/api/client'
 
@@ -136,6 +138,8 @@ async function save() {
     saving.value = false
   }
 }
+
+useModalKeys(toRef(props, 'modelValue'), close, () => { if (!saving.value) save() })
 </script>
 
 <style scoped>

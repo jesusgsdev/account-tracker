@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from timeutil import utcnow
+from services.money import round_money, money_delta
 from models import Property, MortgagePart, PropertyValueAuditLog, MortgagePartAuditLog
 from schemas import (
     PropertyCreate, PropertyUpdate, PropertyValueUpdate, PropertyResponse,
@@ -32,7 +33,7 @@ def create_property(payload: PropertyCreate, db: Session = Depends(get_db)):
         name=payload.name,
         property_address=payload.property_address,
         original_price=payload.original_price,
-        property_value=payload.property_value,
+        property_value=round_money(payload.property_value),
         ownership_percent=payload.ownership_percent,
         notes=payload.notes,
         purchase_date=payload.purchase_date,
@@ -44,8 +45,8 @@ def create_property(payload: PropertyCreate, db: Session = Depends(get_db)):
     db.add(PropertyValueAuditLog(
         property_id=p.id,
         previous_value=0.0,
-        new_value=payload.property_value,
-        change_amount=payload.property_value,
+        new_value=round_money(payload.property_value),
+        change_amount=round_money(payload.property_value),
         note="Initial property value",
         recorded_at=utcnow()
     ))
@@ -95,19 +96,20 @@ def update_property_value(
         raise HTTPException(status_code=409, detail="Property is deleted")
 
     previous = p.property_value
-    change = payload.new_value - previous
+    new_value = round_money(payload.new_value)
+    change, _ = money_delta(previous, new_value)
     
     log = PropertyValueAuditLog(
         property_id=p.id,
         previous_value=previous,
-        new_value=payload.new_value,
+        new_value=new_value,
         change_amount=change,
         note=payload.note,
         recorded_at=utcnow()
     )
     db.add(log)
     
-    p.property_value = payload.new_value
+    p.property_value = new_value
     p.updated_at = utcnow()
     
     db.commit()
@@ -184,7 +186,7 @@ def create_mortgage_part(
         property_id=property_id,
         name=payload.name,
         lender=payload.lender,
-        outstanding_balance=payload.outstanding_balance,
+        outstanding_balance=round_money(payload.outstanding_balance),
         interest_rate=payload.interest_rate,
         mortgage_type=payload.mortgage_type,
         term_years=payload.term_years,
@@ -199,8 +201,8 @@ def create_mortgage_part(
     db.add(MortgagePartAuditLog(
         part_id=part.id,
         previous_value=0.0,
-        new_value=payload.outstanding_balance,
-        change_amount=payload.outstanding_balance,
+        new_value=round_money(payload.outstanding_balance),
+        change_amount=round_money(payload.outstanding_balance),
         note="Initial mortgage balance",
         recorded_at=utcnow()
     ))
@@ -242,19 +244,20 @@ def update_mortgage_part_balance(
         raise HTTPException(status_code=409, detail="Mortgage part is deleted")
 
     previous = part.outstanding_balance
-    change = payload.new_balance - previous
+    new_balance = round_money(payload.new_balance)
+    change, _ = money_delta(previous, new_balance)
     
     log = MortgagePartAuditLog(
         part_id=part.id,
         previous_value=previous,
-        new_value=payload.new_balance,
+        new_value=new_balance,
         change_amount=change,
         note=payload.note,
         recorded_at=utcnow()
     )
     db.add(log)
     
-    part.outstanding_balance = payload.new_balance
+    part.outstanding_balance = new_balance
     part.updated_at = utcnow()
     
     db.commit()

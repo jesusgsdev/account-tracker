@@ -84,7 +84,7 @@
                   <div v-if="profitPreview !== null" class="profit-preview" :class="profitPreview >= 0 ? 'positive' : 'negative'">
                     <span>{{ profitPreview >= 0 ? '▲ Profit' : '▼ Loss' }}:</span>
                     <span class="font-semibold">
-                      {{ profitPreview >= 0 ? '+' : '' }}£{{ Math.abs(form.current_value - (form.initial_investment ?? 0)).toLocaleString('en-GB', { minimumFractionDigits: 2 }) }}
+                      {{ profitPreview >= 0 ? '+' : '' }}{{ formatGBP(Math.abs(form.current_value - (form.initial_investment ?? 0))) }}
                     </span>
                     <span>({{ profitPreview >= 0 ? '+' : '' }}{{ profitPreview.toFixed(2) }}%)</span>
                   </div>
@@ -112,6 +112,9 @@
 </template>
 
 <script setup lang="ts">
+import { formatGBP } from '@/utils/format'
+import { toRef } from 'vue'
+import { useModalKeys } from '@/composables/useModalKeys'
 import { ref, computed, watch } from 'vue'
 import type { Account } from '@/api/client'
 
@@ -192,6 +195,8 @@ async function save() {
     saving.value = false
   }
 }
+
+useModalKeys(toRef(props, 'modelValue'), close, () => { if (!saving.value) save() })
 </script>
 
 <style scoped>

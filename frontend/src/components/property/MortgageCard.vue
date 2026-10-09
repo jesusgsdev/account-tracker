@@ -16,7 +16,7 @@
     <div class="equity-block" :class="property.equity >= 0 ? 'positive' : 'negative'">
       <div class="equity-label text-xs">Your Equity</div>
       <div class="equity-value">
-        {{ property.equity >= 0 ? '' : '-' }}£{{ Math.abs(property.equity).toLocaleString('en-GB', { minimumFractionDigits: 2 }) }}
+        {{ property.equity >= 0 ? '' : '-' }}{{ formatGBP(Math.abs(property.equity)) }}
       </div>
       <div v-if="property.ltv_percent !== null" class="ltv-badge" :class="ltvClass">
         LTV {{ property.ltv_percent.toFixed(1) }}%
@@ -27,16 +27,16 @@
     <div class="breakdown-grid">
       <div class="breakdown-item">
         <span class="breakdown-label text-xs text-muted">Property Value</span>
-        <span class="breakdown-value">£{{ property.property_value.toLocaleString('en-GB', { minimumFractionDigits: 0 }) }}</span>
+        <span class="breakdown-value">{{ formatGBP(property.property_value, { decimals: 0 }) }}</span>
         <span v-if="property.ownership_percent < 100" class="breakdown-share text-xs text-muted">
-          Your {{ property.ownership_percent }}% share: £{{ property.property_value_share.toLocaleString('en-GB', { minimumFractionDigits: 0 }) }}
+          Your {{ property.ownership_percent }}% share: {{ formatGBP(property.property_value_share, { decimals: 0 }) }}
         </span>
       </div>
       <div class="breakdown-item">
         <span class="breakdown-label text-xs text-muted">Total Debt</span>
-        <span class="breakdown-value negative-text">-£{{ property.total_outstanding.toLocaleString('en-GB', { minimumFractionDigits: 0 }) }}</span>
+        <span class="breakdown-value negative-text">-{{ formatGBP(property.total_outstanding, { decimals: 0 }) }}</span>
         <span v-if="property.ownership_percent < 100" class="breakdown-share text-xs text-muted">
-          Your share: -£{{ property.outstanding_share.toLocaleString('en-GB', { minimumFractionDigits: 0 }) }}
+          Your share: -{{ formatGBP(property.outstanding_share, { decimals: 0 }) }}
         </span>
       </div>
     </div>
@@ -45,7 +45,7 @@
     <div v-if="property.property_gain !== null" class="gain-row" :class="property.property_gain >= 0 ? 'positive' : 'negative'">
       <span class="text-xs">{{ property.property_gain >= 0 ? '▲' : '▼' }} vs purchase price</span>
       <span class="gain-amount text-xs font-semibold">
-        {{ property.property_gain >= 0 ? '+' : '' }}£{{ Math.abs(property.property_gain).toLocaleString('en-GB', { minimumFractionDigits: 0 }) }}
+        {{ property.property_gain >= 0 ? '+' : '' }}{{ formatGBP(Math.abs(property.property_gain), { decimals: 0 }) }}
         <span v-if="property.property_gain_percent !== null">({{ property.property_gain_percent >= 0 ? '+' : '' }}{{ property.property_gain_percent.toFixed(1) }}%)</span>
       </span>
     </div>
@@ -74,20 +74,20 @@
               </div>
             </div>
             <div class="part-balance-block text-right">
-              <div class="part-balance font-bold text-sm negative-text">-£{{ part.outstanding_balance.toLocaleString('en-GB', { minimumFractionDigits: 0 }) }}</div>
+              <div class="part-balance font-bold text-sm negative-text">-{{ formatGBP(part.outstanding_balance, { decimals: 0 }) }}</div>
               <div v-if="part.interest_rate !== null" class="part-rate text-xs text-muted">{{ part.interest_rate.toFixed(2) }}% APR</div>
             </div>
           </div>
 
           <div class="part-details text-xs text-muted">
             <span v-if="part.monthly_payment">
-              Payment: £{{ part.monthly_payment.toLocaleString('en-GB') }}/mo
+              Payment: {{ formatGBP(part.monthly_payment) }}/mo
               <span v-if="estPartPayment(part) !== null" class="est-detail text-muted opacity-80" style="margin-left: 4px;">
-                (Est: £{{ estPartPayment(part)?.toLocaleString('en-GB', { maximumFractionDigits: 2 }) }}/mo)
+                (Est: {{ formatGBP(estPartPayment(part)) }}/mo)
               </span>
             </span>
             <span v-else-if="estPartPayment(part) !== null" class="est-payment-span">
-              Est. Payment: £{{ estPartPayment(part)?.toLocaleString('en-GB', { maximumFractionDigits: 2 }) }}/mo
+              Est. Payment: {{ formatGBP(estPartPayment(part)) }}/mo
             </span>
             <span v-if="part.remaining_term_months !== null && part.remaining_term_months > 0" class="term-span">
               Term: {{ Math.floor(part.remaining_term_months / 12) }}y {{ part.remaining_term_months % 12 }}m left
@@ -108,7 +108,7 @@
         Updated {{ updatedFormatted }}
       </span>
       <span v-if="totalEstPayment > 0" class="text-xs text-muted font-semibold" style="margin-left: var(--space-4);">
-        Est. Total Payment: £{{ totalEstPayment.toLocaleString('en-GB', { maximumFractionDigits: 0 }) }}/mo
+        Est. Total Payment: {{ formatGBP(totalEstPayment, { decimals: 0 }) }}/mo
       </span>
       <span v-if="property.weighted_avg_rate !== null" class="text-xs text-muted ml-auto font-semibold">
         Weighted Avg Rate: {{ property.weighted_avg_rate.toFixed(2) }}%
@@ -141,6 +141,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatGBP } from '@/utils/format'
 import { parseApiDate } from '@/utils/date'
 import { ref, computed } from 'vue'
 import { api, type Property, type MortgagePart } from '@/api/client'

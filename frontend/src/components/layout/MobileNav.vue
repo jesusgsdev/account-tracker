@@ -81,11 +81,13 @@ async function handleLogout() {
   bottom: 0;
   left: 0;
   right: 0;
-  height: var(--mobile-nav-height);
+  height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
   background: var(--bg-surface);
   border-top: 1px solid var(--bg-border);
   z-index: 100;
-  padding: 0 var(--space-4);
+  padding-left: max(var(--space-4), env(safe-area-inset-left));
+  padding-right: max(var(--space-4), env(safe-area-inset-right));
   backdrop-filter: blur(12px);
 }
 

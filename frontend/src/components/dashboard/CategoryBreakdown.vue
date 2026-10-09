@@ -15,6 +15,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatGBP } from '@/utils/format'
 import { computed } from 'vue'
 
 const props = defineProps<{
@@ -32,7 +33,7 @@ const ICONS: Record<string, string> = {
 }
 
 const formattedValue = computed(() =>
-  props.totalValue.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  formatGBP(props.totalValue, { decimals: 2, noSymbol: true })
 )
 </script>
 

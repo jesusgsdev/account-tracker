@@ -48,6 +48,7 @@ backend/backup*.json
 
 # Secrets / deployment data
 .env
+.env.local
 data/
 
 # Runtime FX cache

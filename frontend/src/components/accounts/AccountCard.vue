@@ -32,14 +32,14 @@
       <div class="profit-row">
         <span class="profit-label">{{ account.profit_amount! >= 0 ? '▲ Profit' : '▼ Loss' }}</span>
         <span class="profit-amount">
-          {{ account.profit_amount! >= 0 ? '+' : '' }}£{{ Math.abs(account.profit_amount!).toLocaleString('en-GB', { minimumFractionDigits: 2 }) }}
+          {{ account.profit_amount! >= 0 ? '+' : '' }}{{ formatGBP(Math.abs(account.profit_amount!)) }}
         </span>
         <span class="profit-pct" v-if="account.profit_percent !== null">
           ({{ account.profit_percent! >= 0 ? '+' : '' }}{{ account.profit_percent!.toFixed(2) }}%)
         </span>
       </div>
       <div class="profit-initial">
-        Initial: £{{ account.initial_investment!.toLocaleString('en-GB', { minimumFractionDigits: 2 }) }}
+        Initial: {{ formatGBP(account.initial_investment!) }}
       </div>
     </div>
 
@@ -60,6 +60,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatGBP } from '@/utils/format'
 import { parseApiDate } from '@/utils/date'
 import { ref, computed } from 'vue'
 import type { Account } from '@/api/client'
@@ -75,7 +76,7 @@ const emit = defineEmits<{
 const showHoldings = ref(false)
 
 const formattedValue = computed(() =>
-  props.account.current_value.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  formatGBP(props.account.current_value, { decimals: 2, noSymbol: true })
 )
 
 const updatedFormatted = computed(() =>

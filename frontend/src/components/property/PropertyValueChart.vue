@@ -11,6 +11,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatGBP } from '@/utils/format'
 import { computed } from 'vue'
 import {
   Chart as ChartJS, CategoryScale, LinearScale, PointElement,
@@ -95,7 +96,7 @@ const chartOptions = {
       titleColor: '#94a3b8',
       bodyColor: '#f1f5f9',
       callbacks: {
-        label: (ctx: any) => ` ${ctx.dataset.label}: £${ctx.raw.toLocaleString('en-GB', { minimumFractionDigits: 0 })}`,
+        label: (ctx: any) => ` ${ctx.dataset.label}: ${formatGBP(ctx.raw, { decimals: 0 })}`,
       },
     },
   },
@@ -110,7 +111,7 @@ const chartOptions = {
       ticks: {
         color: '#64748b',
         font: { size: 9 },
-        callback: (v: any) => `£${Number(v).toLocaleString('en-GB')}`,
+        callback: (v: any) => `${formatGBP(Number(v), { decimals: 0 })}`,
       },
       border: { color: 'transparent' },
     },

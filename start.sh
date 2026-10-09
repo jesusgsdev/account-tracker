@@ -23,6 +23,23 @@ if [ ! -d "venv" ]; then
   python3 -m venv venv
 fi
 
+# Load ../.env, then ../.env.local (overrides) literally (no shell expansion: the password hash contains '$')
+load_env() {
+  echo "  → Loading $1"
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in ''|'#'*) continue ;; esac
+    key="${line%%=*}"; val="${line#*=}"
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+    [ -n "$val" ] && export "$key=$val"
+  done < "$1"
+}
+if [ -f "$SCRIPT_DIR/.env" ]; then
+  load_env "$SCRIPT_DIR/.env"
+else
+  echo "  ! No .env found — copy .env.example to .env to enable login"
+fi
+[ -f "$SCRIPT_DIR/.env.local" ] && load_env "$SCRIPT_DIR/.env.local"
+
 echo "  → Installing Python dependencies…"
 source venv/bin/activate
 pip install -q -r requirements.txt

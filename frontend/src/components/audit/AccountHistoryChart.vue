@@ -9,6 +9,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatGBP } from '@/utils/format'
 import { parseApiDate } from '@/utils/date'
 import { computed } from 'vue'
 import {
@@ -58,7 +59,7 @@ const chartOptions = {
       borderColor: 'rgba(255,255,255,0.08)',
       borderWidth: 1,
       callbacks: {
-        label: (ctx: any) => ` £${ctx.raw.toLocaleString('en-GB', { minimumFractionDigits: 2 })}`,
+        label: (ctx: any) => ` ${formatGBP(ctx.raw)}`,
       },
     },
   },
@@ -73,7 +74,7 @@ const chartOptions = {
       ticks: {
         color: '#64748b',
         font: { size: 11 },
-        callback: (v: any) => `£${Number(v).toLocaleString('en-GB')}`,
+        callback: (v: any) => `${formatGBP(Number(v), { decimals: 0 })}`,
       },
       border: { color: 'transparent' },
     },

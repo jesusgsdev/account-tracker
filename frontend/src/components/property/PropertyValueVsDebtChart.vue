@@ -7,25 +7,26 @@
       <Doughnut :data="chartData" :options="chartOptions" />
       <div class="center-labels">
         <span class="total-label text-xs text-muted">Value Share</span>
-        <span class="total-val font-bold">£{{ Math.round(property.property_value_share).toLocaleString('en-GB') }}</span>
+        <span class="total-val font-bold">{{ formatGBP(Math.round(property.property_value_share), { decimals: 0 }) }}</span>
       </div>
     </div>
     <div class="legend-container">
       <div class="legend-item">
         <span class="legend-dot dot-equity" />
         <span class="text-xs text-secondary">Equity Share:</span>
-        <span class="text-xs font-semibold value-positive">£{{ Math.round(property.equity).toLocaleString('en-GB') }} ({{ equityPct }}%)</span>
+        <span class="text-xs font-semibold value-positive">{{ formatGBP(Math.round(property.equity), { decimals: 0 }) }} ({{ equityPct }}%)</span>
       </div>
       <div class="legend-item">
         <span class="legend-dot dot-debt" />
         <span class="text-xs text-secondary">Outstanding Debt:</span>
-        <span class="text-xs font-semibold value-negative">£{{ Math.round(property.outstanding_share).toLocaleString('en-GB') }} ({{ debtPct }}%)</span>
+        <span class="text-xs font-semibold value-negative">{{ formatGBP(Math.round(property.outstanding_share), { decimals: 0 }) }} ({{ debtPct }}%)</span>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { formatGBP } from '@/utils/format'
 import { computed } from 'vue'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
 import { Doughnut } from 'vue-chartjs'
@@ -79,7 +80,7 @@ const chartOptions = {
       titleColor: '#94a3b8',
       bodyColor: '#f1f5f9',
       callbacks: {
-        label: (ctx: any) => ` ${ctx.label}: £${ctx.raw.toLocaleString('en-GB', { maximumFractionDigits: 0 })}`
+        label: (ctx: any) => ` ${ctx.label}: ${formatGBP(ctx.raw, { decimals: 0 })}`
       }
     }
   }

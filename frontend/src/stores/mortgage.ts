@@ -1,11 +1,16 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { api, type Property, type MortgagePart, type PropertyValueAuditLog, type MortgagePartAuditLog } from '@/api/client'
+import { api, apiErrorMessage, type Property, type MortgagePart, type PropertyValueAuditLog, type MortgagePartAuditLog } from '@/api/client'
+
+/** Skip refetching if data is younger than this (ms) unless forced. */
+const STALE_MS = 30_000
 
 export const useMortgageStore = defineStore('mortgage', () => {
   const properties = ref<Property[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const lastFetched = ref<number | null>(null)
+  let inflight: Promise<void> | null = null
 
   const totalEquity = computed(() =>
     properties.value.reduce((sum, p) => sum + p.equity, 0)
@@ -20,16 +25,27 @@ export const useMortgageStore = defineStore('mortgage', () => {
   // Alias for backward compatibility or simple renaming
   const mortgages = computed(() => properties.value)
 
-  async function fetchAll() {
+  function invalidate() { lastFetched.value = null }
+
+  /** Fetch properties; skipped when data is fresh (<30s) unless `force`. */
+  async function fetchAll(force = false) {
+    const fresh = lastFetched.value !== null && Date.now() - lastFetched.value < STALE_MS
+    if (!force && fresh) return
+    if (inflight) return inflight
     loading.value = true
     error.value = null
-    try {
-      properties.value = await api.properties.list()
-    } catch (e: any) {
-      error.value = e.message
-    } finally {
-      loading.value = false
-    }
+    inflight = (async () => {
+      try {
+        properties.value = await api.properties.list()
+        lastFetched.value = Date.now()
+      } catch (e) {
+        error.value = apiErrorMessage(e)
+      } finally {
+        loading.value = false
+        inflight = null
+      }
+    })()
+    return inflight
   }
 
   async function createProperty(payload: Parameters<typeof api.properties.create>[0]) {
@@ -91,7 +107,7 @@ export const useMortgageStore = defineStore('mortgage', () => {
   }
 
   return {
-    properties, mortgages, loading, error,
+    properties, mortgages, loading, error, lastFetched, invalidate,
     totalEquity, totalPropertyValueShare, totalOutstandingShare,
     fetchAll, createProperty, updatePropertyValue, updatePropertyMeta, deleteProperty,
     createPart, updatePartMeta, updatePartBalance, deletePart,

@@ -18,11 +18,11 @@
             <span class="time text-xs text-muted">{{ formatTime(log.recorded_at) }}</span>
           </td>
           <td class="td-account">{{ log.account_name ?? `#${log.account_id}` }}</td>
-          <td class="td-mono">£{{ log.previous_value.toLocaleString('en-GB', { minimumFractionDigits: 2 }) }}</td>
-          <td class="td-mono font-semibold">£{{ log.new_value.toLocaleString('en-GB', { minimumFractionDigits: 2 }) }}</td>
+          <td class="td-mono">{{ formatGBP(log.previous_value) }}</td>
+          <td class="td-mono font-semibold">{{ formatGBP(log.new_value) }}</td>
           <td>
             <span class="change-pill" :class="log.change_amount >= 0 ? 'positive' : 'negative'">
-              {{ log.change_amount >= 0 ? '+' : '' }}£{{ Math.abs(log.change_amount).toLocaleString('en-GB', { minimumFractionDigits: 2 }) }}
+              {{ log.change_amount >= 0 ? '+' : '' }}{{ formatGBP(Math.abs(log.change_amount)) }}
               <span v-if="log.change_percent !== null" class="pct">
                 ({{ log.change_percent >= 0 ? '+' : '' }}{{ log.change_percent.toFixed(1) }}%)
               </span>
@@ -42,6 +42,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatGBP } from '@/utils/format'
 import { parseApiDate } from '@/utils/date'
 import type { AuditLog } from '@/api/client'
 

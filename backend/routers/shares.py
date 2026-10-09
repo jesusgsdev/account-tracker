@@ -7,7 +7,7 @@ Scraping, Yahoo fetching, caching and FX live in backend/services/*.
   • Results cached in-process for 15 minutes.
 """
 from typing import List, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -18,15 +18,12 @@ from schemas import (
     PortfolioLiveResponse,
 )
 from services import utcnow_naive
+from services.money import round_money, money_delta, money_sum
 from services.prices import infer_currency as _infer_currency, fetch_batch_prices as _fetch_batch_prices
 from services.fx import FxSnapshot
 from services.snapshot import value_holdings, build_note, fx_for_holdings
 
 router = APIRouter(prefix="/api/shares", tags=["shares"])
-
-
-def _fx_for(tickers_or_currencies: List[str], holdings: List[ShareHolding]) -> FxSnapshot:
-    return fx_for_holdings(holdings)
 
 
 # ── Portfolio builder (shared by /live and /all-live) ─────────────────────────
@@ -43,8 +40,8 @@ def _build_portfolio(
     Falls back to h.last_price when live fetch fails (is_stale=True).
     """
     live_holdings: List[LiveHoldingResponse] = []
-    total_cost_gbp  = 0.0
-    total_value_gbp = 0.0
+    cost_parts: List[float] = []
+    value_parts: List[float] = []
 
     for h in holdings:
         info     = prices.get(h.ticker.upper(), {})
@@ -81,9 +78,9 @@ def _build_portfolio(
         pnl_pct    = (pnl_native / cost_basis * 100) if (pnl_native is not None and cost_basis and cost_basis != 0) else None
 
         if live_value_gbp is not None:
-            total_value_gbp += live_value_gbp
+            value_parts.append(live_value_gbp)
         if cost_basis_gbp is not None:
-            total_cost_gbp += cost_basis_gbp
+            cost_parts.append(cost_basis_gbp)
 
         # Persist inferred currency
         if currency and h.currency != currency:
@@ -112,7 +109,9 @@ def _build_portfolio(
             last_price_at=last_price_at,
         ))
 
-    total_pnl     = (total_value_gbp - total_cost_gbp) if (total_value_gbp and total_cost_gbp) else None
+    total_value_gbp = money_sum(value_parts)
+    total_cost_gbp  = money_sum(cost_parts)
+    total_pnl     = round_money(total_value_gbp - total_cost_gbp) if (total_value_gbp and total_cost_gbp) else None
     total_pnl_pct = (total_pnl / total_cost_gbp * 100) if (total_pnl is not None and total_cost_gbp != 0) else None
 
     # Count how many live prices were successfully fetched in this request
@@ -132,9 +131,8 @@ def _build_portfolio(
         account = db.query(Account).filter(Account.id == account_id).first()
         if account and total_value_gbp > 0:
             previous = account.current_value
-            change   = total_value_gbp - previous
+            change, pct = money_delta(previous, total_value_gbp)
             if abs(change) >= 0.01:
-                pct = ((change / previous) * 100) if previous != 0 else None
                 tickers_synced = [h.ticker for h in holdings]
                 log = AuditLog(
                     account_id=account.id,
@@ -169,9 +167,14 @@ def _build_portfolio(
 # ── Live Prices — ALL investment accounts in one call ─────────────────────────
 
 @router.get("/all-live", response_model=List[PortfolioLiveResponse])
-def get_all_live_portfolios(db: Session = Depends(get_db)):
+def get_all_live_portfolios(
+    refresh: bool = Query(True, description="false = serve the last stored prices without calling Yahoo"),
+    db: Session = Depends(get_db),
+):
     """
     Fetch live prices for every holding across ALL investment accounts.
+    With ``refresh=false`` nothing is fetched: holdings are valued at their last stored
+    prices (flagged stale) and no account sync happens.
     Deduplicates tickers and issues a SINGLE yf.download() call.
     Returns a list of PortfolioLiveResponse, one per account that has holdings.
     """
@@ -189,8 +192,8 @@ def get_all_live_portfolios(db: Session = Depends(get_db)):
 
     # Deduplicate tickers across all accounts → ONE batch download
     all_tickers = list({h.ticker.upper() for h in holdings_all})
-    prices = _fetch_batch_prices(all_tickers)
-    fx = _fx_for(all_tickers, holdings_all)
+    prices = _fetch_batch_prices(all_tickers) if refresh else {}
+    fx = fx_for_holdings(holdings_all)
 
     # Group holdings by account_id
     by_account: Dict[int, List[ShareHolding]] = {}
@@ -294,7 +297,7 @@ def get_live_portfolio(account_id: int, db: Session = Depends(get_db)):
 
     all_tickers = list({h.ticker.upper() for h in holdings})
     prices = _fetch_batch_prices(all_tickers)
-    fx = _fx_for(all_tickers, holdings)
+    fx = fx_for_holdings(holdings)
 
     result = _build_portfolio(account_id, holdings, prices, fx, db)
     db.commit()
@@ -319,7 +322,7 @@ def sync_account_value(account_id: int, db: Session = Depends(get_db)):
 
     all_tickers = list({h.ticker.upper() for h in holdings})
     prices = _fetch_batch_prices(all_tickers)
-    fx     = _fx_for(all_tickers, holdings)
+    fx     = fx_for_holdings(holdings)
 
     live_fetches = sum(1 for h in holdings if prices.get(h.ticker.upper(), {}).get("price") is not None)
     if live_fetches == 0:
@@ -337,8 +340,8 @@ def sync_account_value(account_id: int, db: Session = Depends(get_db)):
         )
 
     previous = account.current_value
-    change   = total_gbp - previous
-    pct      = ((change / previous) * 100) if previous != 0 else None
+    total_gbp = round_money(total_gbp)
+    change, pct = money_delta(previous, total_gbp)
 
     flags = fx.flags()
     note = build_note(v, fx)

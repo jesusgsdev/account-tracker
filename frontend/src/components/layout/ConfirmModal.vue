@@ -31,6 +31,8 @@
 </template>
 
 <script setup lang="ts">
+import { toRef } from 'vue'
+import { useModalKeys } from '@/composables/useModalKeys'
 const props = withDefaults(defineProps<{
   modelValue: boolean
   title?: string
@@ -61,6 +63,8 @@ function confirm() {
   emit('confirm')
   emit('update:modelValue', false)
 }
+
+useModalKeys(toRef(props, 'modelValue'), cancel, confirm)
 </script>
 
 <style scoped>

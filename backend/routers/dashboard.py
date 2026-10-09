@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -6,6 +7,7 @@ from sqlalchemy import desc
 
 from database import get_db
 from timeutil import utcnow
+from services.money import round_money, money_sum
 from models import Account, AuditLog, Property, MortgagePart, PropertyValueAuditLog, MortgagePartAuditLog
 from schemas import (
     DashboardSummary, CategorySummary, MortgageSummary,
@@ -17,14 +19,21 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 CATEGORIES = ["INVESTMENTS", "RETIREMENT", "SAVINGS"]
 
 
+def _property_figures(p) -> dict:
+    """Per-property money figures (penny-exact): value/outstanding raw and share, equity."""
+    own = Decimal(repr(float(p.ownership_percent))) / 100
+    value = Decimal(repr(float(p.property_value)))
+    out = sum((Decimal(repr(float(pt.outstanding_balance))) for pt in p.mortgage_parts if pt.is_active), Decimal(0))
+    return {
+        "value_raw": value, "out_raw": out,
+        "value_share": value * own, "out_share": out * own,
+        "equity": (value - out) * own,
+    }
+
+
 def _compute_mortgage_equity(properties: list) -> float:
     """Sum of (property_value - total_outstanding_balance) * ownership_percent/100."""
-    total_equity = 0.0
-    for p in properties:
-        total_out = sum(pt.outstanding_balance for pt in p.mortgage_parts if pt.is_active)
-        equity = (p.property_value - total_out) * (p.ownership_percent / 100.0)
-        total_equity += equity
-    return total_equity
+    return round_money(sum((_property_figures(p)["equity"] for p in properties), Decimal(0)))
 
 
 @router.get("/summary", response_model=DashboardSummary)
@@ -32,9 +41,10 @@ def get_summary(db: Session = Depends(get_db)):
     accounts = db.query(Account).filter(Account.is_active == True).all()
     properties = db.query(Property).filter(Property.is_active == True).all()
 
-    accounts_total = sum(a.current_value for a in accounts)
-    mortgage_equity = _compute_mortgage_equity(properties)
-    total_value = accounts_total + mortgage_equity
+    figs = [_property_figures(p) for p in properties]  # single pass over properties/parts
+    accounts_total = money_sum(a.current_value for a in accounts)
+    mortgage_equity = round_money(sum((f["equity"] for f in figs), Decimal(0)))
+    total_value = round_money(Decimal(repr(accounts_total)) + Decimal(repr(mortgage_equity)))
 
     last_updated = max(
         (a.updated_at for a in accounts),
@@ -50,11 +60,11 @@ def get_summary(db: Session = Depends(get_db)):
     categories = []
     for cat in CATEGORIES:
         cat_accounts = [a for a in accounts if a.category == cat]
-        cat_total = sum(a.current_value for a in cat_accounts)
+        cat_total = money_sum(a.current_value for a in cat_accounts)
 
         last_change = None
         if cat_accounts:
-            total_invested = sum(
+            total_invested = money_sum(
                 a.initial_investment if a.initial_investment is not None else a.current_value
                 for a in cat_accounts
             )
@@ -71,17 +81,10 @@ def get_summary(db: Session = Depends(get_db)):
     # Mortgage summary
     mort_summary = None
     if properties:
-        pv_share = sum(p.property_value * (p.ownership_percent / 100.0) for p in properties)
-        # Sum outstanding share for all active parts of all active properties
-        ob_share = sum(
-            sum(pt.outstanding_balance for pt in p.mortgage_parts if pt.is_active) * (p.ownership_percent / 100.0)
-            for p in properties
-        )
-        pv_raw = sum(p.property_value for p in properties)
-        ob_raw = sum(
-            sum(pt.outstanding_balance for pt in p.mortgage_parts if pt.is_active)
-            for p in properties
-        )
+        def tot(key):
+            return round_money(sum((f[key] for f in figs), Decimal(0)))
+        pv_share, ob_share = tot("value_share"), tot("out_share")
+        pv_raw, ob_raw = tot("value_raw"), tot("out_raw")
         mort_summary = MortgageSummary(
             total_property_value_share=pv_share,
             total_outstanding_share=ob_share,
@@ -270,7 +273,7 @@ def get_history(
     events.sort(key=lambda e: (e[0], e[1]))
 
     if not events:
-        total = sum(account_values.values()) + current_mortgage_equity()
+        total = round_money(money_sum(account_values.values()) + current_mortgage_equity())
         return DashboardHistory(points=[HistoryPoint(date=utcnow(), total_value=total, category=category)])
 
     points: List[HistoryPoint] = []
@@ -289,7 +292,7 @@ def get_history(
         elif kind == "part_end":
             part_balances.pop(obj, None)
 
-        total = sum(account_values.values()) + current_mortgage_equity()
+        total = round_money(money_sum(account_values.values()) + current_mortgage_equity())
         points.append(HistoryPoint(date=recorded_at, total_value=total, category=category))
 
     return DashboardHistory(points=points)

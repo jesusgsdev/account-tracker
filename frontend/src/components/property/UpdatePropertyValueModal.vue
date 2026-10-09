@@ -35,10 +35,10 @@
               <div v-if="changeAmount !== null" class="change-preview" :class="previewClass">
                 <span>{{ changeAmount >= 0 ? '▲ Value increase' : '▼ Value decrease' }}</span>
                 <span class="font-semibold">
-                  {{ changeAmount >= 0 ? '+' : '' }}£{{ Math.abs(changeAmount).toLocaleString('en-GB', { minimumFractionDigits: 0 }) }}
+                  {{ changeAmount >= 0 ? '+' : '' }}{{ formatGBP(Math.abs(changeAmount), { decimals: 0 }) }}
                 </span>
                 <span v-if="equityImpact !== null" class="equity-impact">
-                  Equity {{ equityImpact >= 0 ? '▲' : '▼' }} £{{ Math.abs(equityImpact).toLocaleString('en-GB', { minimumFractionDigits: 0 }) }}
+                  Equity {{ equityImpact >= 0 ? '▲' : '▼' }} {{ formatGBP(Math.abs(equityImpact), { decimals: 0 }) }}
                 </span>
               </div>
 
@@ -62,6 +62,11 @@
 </template>
 
 <script setup lang="ts">
+import { formatGBP } from '@/utils/format'
+import { toRef } from 'vue'
+import { useToast } from '@/composables/useToast'
+import { apiErrorMessage } from '@/api/client'
+import { useModalKeys } from '@/composables/useModalKeys'
 import { ref, computed, watch } from 'vue'
 import type { Property } from '@/api/client'
 import { useMortgageStore } from '@/stores/mortgage'
@@ -89,7 +94,7 @@ watch(() => props.property, (p) => {
 }, { immediate: true })
 
 const currentFormatted = computed(() =>
-  props.property ? props.property.property_value.toLocaleString('en-GB', { minimumFractionDigits: 0 }) : '0'
+props.property ? formatGBP(props.property.property_value, { decimals: 0, noSymbol: true }) : '0'
 )
 
 const changeAmount = computed(() => {
@@ -118,14 +123,18 @@ async function save() {
   saving.value = true
   try {
     await store.updatePropertyValue(props.property.id, newValue.value, note.value || undefined)
+    toast.success('Value updated')
     emit('saved')
     close()
   } catch (err: any) {
-    alert(err.message)
+    toast.error(apiErrorMessage(err))
   } finally {
     saving.value = false
   }
 }
+
+const toast = useToast()
+useModalKeys(toRef(props, 'modelValue'), close, () => { if (!saving.value) save() })
 </script>
 
 <style scoped>

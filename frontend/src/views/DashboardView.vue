@@ -46,7 +46,7 @@
           <div class="cat-icon">🏠</div>
           <span class="badge badge-property">Property Equity</span>
         </div>
-        <div class="cat-value">£{{ summary.mortgage_equity.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</div>
+        <div class="cat-value">{{ formatGBP(summary.mortgage_equity) }}</div>
         <div class="cat-meta">
           <span class="text-xs text-muted">
             {{ summary.mortgage_summary.mortgage_count }} propert{{ summary.mortgage_summary.mortgage_count !== 1 ? 'ies' : 'y' }}
@@ -60,6 +60,7 @@
       <NetWorthChart
         :points="history?.points ?? []"
         :loading="historyLoading"
+        :initial-days="chartDays"
         class="chart-main"
         @range-change="onRangeChange"
       />
@@ -75,6 +76,9 @@
 import { parseApiDate } from '@/utils/date'
 import { ref, computed, onMounted } from 'vue'
 import { api, type DashboardSummary, type DashboardHistory } from '@/api/client'
+import { useLocalStorage } from '@vueuse/core'
+import { useRefetchOnFocus } from '@/composables/useRefetchOnFocus'
+import { formatGBP } from '@/utils/format'
 import { useSharesStore } from '@/stores/shares'
 import NetWorthCard from '@/components/dashboard/NetWorthCard.vue'
 import CategoryBreakdown from '@/components/dashboard/CategoryBreakdown.vue'
@@ -93,6 +97,9 @@ const priceWarning = computed(() => {
   if (ps.some(p => p.gbpusd_rate_is_fallback)) return 'Using fallback GBP/USD rate'
   return null
 })
+
+/** Remembered net-worth chart range (days). */
+const chartDays = useLocalStorage('foliotrack.nwChartDays', 365)
 
 const summary = ref<DashboardSummary | null>(null)
 const history = ref<DashboardHistory | null>(null)
@@ -125,12 +132,15 @@ async function loadHistory(days = 365) {
 }
 
 function onRangeChange(days: number) {
+  chartDays.value = days
   loadHistory(days)
 }
 
+useRefetchOnFocus(() => { loadSummary(); loadHistory(chartDays.value) })
+
 onMounted(() => {
   loadSummary()
-  loadHistory()
+  loadHistory(chartDays.value)
 })
 </script>
 

@@ -11,9 +11,9 @@
         </span>
         <button
           class="btn btn-sm btn-secondary refresh-all-btn"
-          @click="handleRefreshAll"
-          :disabled="sharesStore.loading"
-          title="Fetch live prices for all holdings at once"
+          @click="handleRefreshPrices"
+          :disabled="sharesStore.loading || syncingAll"
+          title="Fetch live prices for all holdings (display only, balances are not changed)"
         >
           <span v-if="sharesStore.loading" class="btn-spinner" />
           <span v-else>🔄</span>
@@ -21,11 +21,11 @@
         </button>
         <button
           class="btn btn-sm btn-secondary sync-all-btn"
-          @click="handleRefreshAll"
-          :disabled="sharesStore.loading"
-          title="Synchronize all account balances with current live values"
+          @click="handleSyncAll"
+          :disabled="sharesStore.loading || syncingAll"
+          title="Synchronize all share-holding account balances with current live values"
         >
-          <span v-if="sharesStore.loading" class="btn-spinner" />
+          <span v-if="syncingAll" class="btn-spinner" />
           <span v-else>💾</span>
           Sync All
         </button>
@@ -38,7 +38,7 @@
       </div>
     </div>
 
-    <div v-if="store.loading" class="loading-grid">
+    <div v-if="store.loading && !store.accounts.length" class="loading-grid">
       <div v-for="i in 6" :key="i" class="skeleton" style="height: 160px; border-radius: 16px;" />
     </div>
 
@@ -53,12 +53,12 @@
           <div class="section-metrics">
             <div class="metric-item">
               <span class="metric-label">Invested:</span>
-              <span class="metric-value">£{{ categoryInvested(category.key).toLocaleString('en-GB', { minimumFractionDigits: 2 }) }}</span>
+              <span class="metric-value">{{ formatGBP(categoryInvested(category.key)) }}</span>
             </div>
             <div class="metric-divider">|</div>
             <div class="metric-item">
               <span class="metric-label">Current:</span>
-              <span class="metric-value font-semibold">£{{ categoryTotal(category.key).toLocaleString('en-GB', { minimumFractionDigits: 2 }) }}</span>
+              <span class="metric-value font-semibold">{{ formatGBP(categoryTotal(category.key)) }}</span>
             </div>
             <div v-if="categoryChange(category.key) !== null" class="change-badge" :class="categoryChange(category.key)! >= 0 ? 'change-up' : 'change-down'">
               {{ categoryChange(category.key)! >= 0 ? '▲' : '▼' }} {{ Math.abs(categoryChange(category.key)!).toFixed(1) }}%
@@ -118,11 +118,15 @@ import AccountCard from '@/components/accounts/AccountCard.vue'
 import EditValueModal from '@/components/accounts/EditValueModal.vue'
 import AddAccountModal from '@/components/accounts/AddAccountModal.vue'
 import ConfirmModal from '@/components/layout/ConfirmModal.vue'
-import type { Account } from '@/api/client'
+import { api, apiErrorMessage, type Account } from '@/api/client'
+import { formatGBP } from '@/utils/format'
+import { useToast } from '@/composables/useToast'
+import { useRefetchOnFocus } from '@/composables/useRefetchOnFocus'
 
 const store = useAccountsStore()
 const auditStore = useAuditStore()
 const sharesStore = useSharesStore()
+const toast = useToast()
 
 const CATEGORIES = [
   { key: 'INVESTMENTS', label: 'Investments', icon: '📈' },
@@ -167,11 +171,26 @@ function openEdit(account: Account) {
 
 async function onValueSaved(newValue: number, note?: string) {
   if (!selectedAccount.value) return
-  const log = await store.updateValue(selectedAccount.value.id, newValue, note)
-  auditStore.addLog(log)
+  try {
+    const log = await store.updateValue(selectedAccount.value.id, newValue, note)
+    auditStore.addLog(log)
+    toast.success('Value updated')
+  } catch (e) {
+    toast.error(`Could not update value: ${apiErrorMessage(e)}`)
+  }
 }
 
 async function onAccountSaved(form: any) {
+  const editing = !!editingAccount.value
+  try {
+    await saveAccount(form)
+    toast.success(editing ? 'Account updated' : 'Account created')
+  } catch (e) {
+    toast.error(`Could not save account: ${apiErrorMessage(e)}`)
+  }
+}
+
+async function saveAccount(form: any) {
   if (editingAccount.value) {
     await store.updateMeta(editingAccount.value.id, {
       name: form.name,
@@ -202,19 +221,83 @@ function onDeleteAccount() {
 
 async function executeDeleteAccount() {
   if (!editingAccount.value) return
-  await store.deleteAccount(editingAccount.value.id)
-  showAdd.value = false
-  editingAccount.value = null
+  try {
+    await store.deleteAccount(editingAccount.value.id)
+    toast.success('Account deleted')
+    showAdd.value = false
+    editingAccount.value = null
+  } catch (e) {
+    toast.error(`Could not delete account: ${apiErrorMessage(e)}`)
+  }
 }
 
-async function onRefreshAccount(accountId: number) {
-  await store.fetchAll()
+async function onRefreshAccount(_accountId: number) {
+  await store.fetchAll(true)
 }
 
-async function handleRefreshAll() {
+/** Fetch live prices only (display); account balances are NOT modified. */
+async function handleRefreshPrices() {
   await sharesStore.refreshAll()
-  await store.fetchAll()
+  focus.touch()
+  if (sharesStore.error) toast.error(`Price refresh failed: ${sharesStore.error}`)
+  else toast.success('Prices refreshed')
 }
+
+const syncingAll = ref(false)
+const SYNC_CONCURRENCY = 3
+
+/** Persist live share values into each share-holding account's balance via /shares/{id}/sync. */
+async function handleSyncAll() {
+  if (syncingAll.value) return
+  syncingAll.value = true
+  try {
+    // Always reload so we know every account that holds shares.
+    await sharesStore.refreshAll()
+    const ids = Object.values(sharesStore.portfolios)
+      .filter(p => p.holdings.length > 0)
+      .map(p => p.account_id)
+    if (!ids.length) {
+      if (sharesStore.error) toast.error(`Could not load holdings: ${sharesStore.error}`)
+      else toast.info('No share-holding accounts to sync')
+      return
+    }
+
+    const failures: string[] = []
+    let synced = 0
+    const queue = [...ids]
+    const nameOf = (id: number) => store.accounts.find(a => a.id === id)?.name ?? `Account ${id}`
+    const worker = async () => {
+      while (queue.length) {
+        const id = queue.shift()!
+        try {
+          await api.shares.sync(id)
+          synced++
+        } catch (e) {
+          failures.push(`${nameOf(id)}: ${apiErrorMessage(e)}`)
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(SYNC_CONCURRENCY, ids.length) }, worker))
+
+    auditStore.invalidate()
+    await Promise.all([store.fetchAll(true), sharesStore.refreshAll()])
+    focus.touch()
+
+    if (failures.length) {
+      toast.error(`Synced ${synced} of ${ids.length}. Failed:\n${failures.join('\n')}`, 10000)
+    } else {
+      toast.success(`Synced ${synced} account${synced === 1 ? '' : 's'}`)
+    }
+  } finally {
+    syncingAll.value = false
+  }
+}
+
+// Re-fetch live prices + accounts when the tab regains focus (throttled).
+const focus = useRefetchOnFocus(() => {
+  sharesStore.refreshAll()
+  store.fetchAll(true)
+})
 
 const now = ref(new Date())
 let relativeTimer: any = null

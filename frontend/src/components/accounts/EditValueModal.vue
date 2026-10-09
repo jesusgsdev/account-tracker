@@ -33,7 +33,7 @@
               </div>
 
               <div v-if="newValue !== null && newValue !== account?.current_value" class="change-preview" :class="changeClass">
-                <span>{{ changeAmount >= 0 ? '+' : '' }}£{{ Math.abs(changeAmount).toLocaleString('en-GB', { minimumFractionDigits: 2 }) }}</span>
+                <span>{{ changeAmount >= 0 ? '+' : '' }}{{ formatGBP(Math.abs(changeAmount)) }}</span>
                 <span v-if="changePercent !== null">({{ changeAmount >= 0 ? '+' : '' }}{{ changePercent.toFixed(2) }}%)</span>
               </div>
 
@@ -61,6 +61,9 @@
 </template>
 
 <script setup lang="ts">
+import { formatGBP } from '@/utils/format'
+import { toRef } from 'vue'
+import { useModalKeys } from '@/composables/useModalKeys'
 import { ref, computed, watch } from 'vue'
 import type { Account } from '@/api/client'
 
@@ -84,7 +87,7 @@ watch(() => props.account, (a) => {
 })
 
 const formattedCurrent = computed(() =>
-  (props.account?.current_value ?? 0).toLocaleString('en-GB', { minimumFractionDigits: 2 })
+  formatGBP((props.account?.current_value ?? 0), { decimals: 2, noSymbol: true })
 )
 
 const changeAmount = computed(() =>
@@ -115,6 +118,8 @@ async function save() {
     saving.value = false
   }
 }
+
+useModalKeys(toRef(props, 'modelValue'), close, () => { if (!saving.value) save() })
 </script>
 
 <style scoped>
