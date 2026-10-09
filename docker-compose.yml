@@ -6,6 +6,9 @@ services:
       args:
         APP_UID: ${APP_UID:-1000}
         APP_GID: ${APP_GID:-1000}
+    # Run as root, as the original version did. Synology ACLs on ./data reject
+    # non-root container users; to harden, set a user that owns ./data (e.g. "1026:100").
+    user: "0:0"
     env_file:
       - .env
     environment:
