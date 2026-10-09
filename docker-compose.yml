@@ -1,15 +1,24 @@
-version: '3.8'
-
 services:
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile.backend
+      args:
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
+    env_file:
+      - .env
+    environment:
+      DB_PATH: /data/tracker.db
     volumes:
-      # Persists the SQLite database to a local database file on DSM
-      - ./backend/tracker.db:/app/tracker.db
-      - ./backend/tracker.db-wal:/app/tracker.db-wal
-      - ./backend/tracker.db-shm:/app/tracker.db-shm
+      # Directory mount (never single files): holds tracker.db, -wal and -shm
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     restart: always
 
   frontend:
@@ -19,5 +28,6 @@ services:
     ports:
       - "8080:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: always

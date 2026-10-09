@@ -2,8 +2,10 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 import os
 
-# Database file lives in the backend directory — easy to copy/backup
-DB_PATH = os.path.join(os.path.dirname(__file__), "tracker.db")
+# Database file location. Defaults to backend/tracker.db (local dev / existing
+# installs); override with the DB_PATH environment variable (e.g. /data/tracker.db
+# in Docker).
+DB_PATH = os.environ.get("DB_PATH") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "tracker.db")
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 engine = create_engine(

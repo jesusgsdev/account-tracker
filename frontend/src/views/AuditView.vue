@@ -28,6 +28,10 @@
             </option>
           </select>
         </div>
+        <label class="hide-auto">
+          <input type="checkbox" v-model="hideAuto" />
+          Hide auto-snapshots
+        </label>
       </div>
     </div>
 
@@ -48,6 +52,7 @@
 </template>
 
 <script setup lang="ts">
+import { parseApiDate } from '@/utils/date'
 import { ref, computed, watch, onMounted } from 'vue'
 import { useAuditStore } from '@/stores/audit'
 import { useAccountsStore } from '@/stores/accounts'
@@ -66,9 +71,13 @@ const CATEGORY_COLORS: Record<string, string> = {
   SAVINGS:     '#34d399',
 }
 
+const hideAuto = ref(false)
+
 const filteredLogs = computed(() => {
-  if (!filterAccountId.value) return auditStore.logs
-  return auditStore.logs.filter(l => l.account_id === filterAccountId.value)
+  let logs = auditStore.logs
+  if (filterAccountId.value) logs = logs.filter(l => l.account_id === filterAccountId.value)
+  if (hideAuto.value) logs = logs.filter(l => !l.note?.startsWith('[auto-snapshot] '))
+  return logs
 })
 
 const selectedAccountName = computed(() => {
@@ -94,7 +103,7 @@ function exportCsv() {
   const header = 'Date,Account,Previous Value,New Value,Change,Change %,Note'
   const rows = logs.map(l =>
     [
-      new Date(l.recorded_at + 'Z').toISOString(),
+      parseApiDate(l.recorded_at).toISOString(),
       `"${l.account_name ?? l.account_id}"`,
       l.previous_value,
       l.new_value,
@@ -145,6 +154,17 @@ onMounted(() => {
   display: flex;
   gap: var(--space-4);
   flex-wrap: wrap;
+}
+
+.hide-auto {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: flex-end;
+  padding-bottom: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
 }
 
 .filter-field { min-width: 200px; flex: 1; }

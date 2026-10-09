@@ -24,6 +24,9 @@
             </span>
           </div>
         </div>
+        <div v-if="priceWarning" class="price-warning text-xs" role="status" :title="priceWarning">
+          ⚠️ {{ priceWarning }}
+        </div>
         <div v-if="lastUpdated" class="meta text-xs text-muted">
           Last updated {{ lastUpdatedFormatted }}
         </div>
@@ -92,6 +95,7 @@
 </template>
 
 <script setup lang="ts">
+import { parseApiDate } from '@/utils/date'
 import { computed } from 'vue'
 import type { MortgageSummary } from '@/api/client'
 
@@ -101,6 +105,8 @@ const props = defineProps<{
   mortgageEquity: number
   mortgageSummary: MortgageSummary | null
   lastUpdated: string | null
+  /** Compact warning when investment data is stale / last sync failed */
+  priceWarning?: string | null
 }>()
 
 const formattedValue = computed(() =>
@@ -143,7 +149,7 @@ function fmtShort(v: number) {
 
 const lastUpdatedFormatted = computed(() => {
   if (!props.lastUpdated) return ''
-  return new Date(props.lastUpdated + 'Z').toLocaleDateString('en-GB', {
+  return parseApiDate(props.lastUpdated).toLocaleDateString('en-GB', {
     day: 'numeric', month: 'short', year: 'numeric',
   })
 })
@@ -317,5 +323,13 @@ const lastUpdatedFormatted = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+.price-warning {
+  display: inline-block;
+  margin-top: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--cat-retirement-bg);
+  color: var(--cat-retirement);
 }
 </style>

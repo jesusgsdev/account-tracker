@@ -24,6 +24,7 @@
 </template>
 
 <script setup lang="ts">
+import { parseApiDate } from '@/utils/date'
 import { ref, computed, watch } from 'vue'
 import {
   Chart as ChartJS, CategoryScale, LinearScale, PointElement,
@@ -54,7 +55,7 @@ const chartData = computed(() => {
   if (!props.points.length) return null
   return {
     labels: props.points.map(p =>
-      new Date(p.date + 'Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+      parseApiDate(p.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
     ),
     datasets: [{
       label: 'Net Worth',

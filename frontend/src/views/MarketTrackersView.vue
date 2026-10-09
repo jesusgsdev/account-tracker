@@ -32,6 +32,13 @@
       </div>
     </div>
 
+    <PortfolioWarnings
+      :portfolios="Object.values(sharesStore.portfolios)"
+      :sync-error="sharesStore.syncError"
+      :now="now"
+    />
+    <WarningBanner v-if="sharesStore.error" level="error">{{ friendlyError }}</WarningBanner>
+
     <!-- Summary Metrics Cards -->
     <div class="metrics-grid">
       <div class="metric-card card val-card">
@@ -228,6 +235,9 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAccountsStore } from '@/stores/accounts'
 import { useSharesStore } from '@/stores/shares'
+import { apiErrorMessage } from '@/api/client'
+import WarningBanner from '@/components/common/WarningBanner.vue'
+import PortfolioWarnings from '@/components/common/PortfolioWarnings.vue'
 
 const accountsStore = useAccountsStore()
 const sharesStore = useSharesStore()
@@ -263,6 +273,8 @@ const formatRefreshed = computed(() => {
   }
   return `${timeStr} (${diffMins}m ago)`
 })
+
+const friendlyError = computed(() => apiErrorMessage(new Error(sharesStore.error ?? '')))
 
 // Trigger a refresh of prices and accounts values
 async function handleRefreshAll() {

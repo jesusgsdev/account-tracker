@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from database import get_db
+from timeutil import utcnow
 from models import Account, AuditLog, Property, MortgagePart, PropertyValueAuditLog, MortgagePartAuditLog
 from schemas import (
     DashboardSummary, CategorySummary, MortgageSummary,
@@ -101,6 +102,45 @@ def get_summary(db: Session = Depends(get_db)):
     )
 
 
+def _seed(logs_by_id: dict, pre_by_id: dict, entity_id: int, fallback: float) -> float:
+    """Value of an entity at the start of the history window.
+
+    1. Last log before the window -> its new_value.
+    2. Else the earliest in-window log's previous_value (the value that held
+       just before the first recorded change; 0 for the "Initial value" log, so
+       entities created inside the window correctly start at 0).
+    3. Else (no logs at all) -> the current value; nothing ever changed.
+    """
+    if entity_id in pre_by_id:
+        return pre_by_id[entity_id].new_value
+    if entity_id in logs_by_id:
+        return logs_by_id[entity_id][0].previous_value
+    return fallback
+
+
+def _group(logs: list, key: str) -> dict:
+    out: dict = {}
+    for l in logs:  # logs are already ordered by recorded_at
+        out.setdefault(getattr(l, key), []).append(l)
+    return out
+
+
+def _last_before(db: Session, model, key_col, ids: list, since: datetime) -> dict:
+    """Latest log strictly before ``since`` for each id."""
+    if not ids:
+        return {}
+    rows = (
+        db.query(model)
+        .filter(key_col.in_(ids), model.recorded_at < since)
+        .order_by(model.recorded_at, model.id)
+        .all()
+    )
+    out: dict = {}
+    for r in rows:  # ascending, so later rows overwrite earlier ones
+        out[getattr(r, key_col.key)] = r
+    return out
+
+
 @router.get("/history", response_model=DashboardHistory)
 def get_history(
     days: int = Query(default=365, description="Number of days of history"),
@@ -110,89 +150,102 @@ def get_history(
     """
     Time-series of total portfolio value (accounts + mortgage equity) from the audit logs.
     Mortgage equity is included unless a category filter is specified.
+
+    Soft-deleted items (is_active = False):
+      History is NOT rewritten retroactively. An inactive account/property/part
+      still contributes to the series until its deletion time, which we take to
+      be its ``updated_at`` (delete sets it; value changes on deleted items are
+      refused, so it is not touched afterwards). From that moment its value
+      counts as 0. Items deleted before the window start are skipped entirely.
+      A deleted property removes its whole equity (its parts included); a
+      deleted part alone removes just its balance (equity rises).
+
+    Seeding: see ``_seed`` - never falls back to the CURRENT value when a log
+    exists, so history is not rewritten with today's numbers.
     """
-    since = datetime.utcnow() - timedelta(days=days)
+    since = utcnow() - timedelta(days=days)
     include_mortgages = category is None
 
-    # ── Account history ────────────────────────────────────────────────────
-    accounts = db.query(Account).filter(Account.is_active == True).all()
+    # ── Accounts (active, plus those deleted inside/after the window start) ──
+    accounts = db.query(Account).all()
     if category:
         accounts = [a for a in accounts if a.category == category.upper()]
+    accounts = [a for a in accounts if a.is_active or a.updated_at >= since]
 
     if not accounts and not include_mortgages:
         return DashboardHistory(points=[])
 
     account_ids = [a.id for a in accounts]
-
     account_logs = (
         db.query(AuditLog)
         .filter(AuditLog.account_id.in_(account_ids), AuditLog.recorded_at >= since)
-        .order_by(AuditLog.recorded_at)
+        .order_by(AuditLog.recorded_at, AuditLog.id)
         .all()
     ) if account_ids else []
+    acc_by_id = _group(account_logs, "account_id")
+    acc_pre = _last_before(db, AuditLog, AuditLog.account_id, account_ids, since)
 
-    # Seed account values at start of window
-    account_values: dict[int, float] = {}
-    for account in accounts:
-        pre = (
-            db.query(AuditLog)
-            .filter(AuditLog.account_id == account.id, AuditLog.recorded_at < since)
-            .order_by(desc(AuditLog.recorded_at))
-            .first()
-        )
-        account_values[account.id] = pre.new_value if pre else 0.0
+    account_values: dict[int, float] = {
+        a.id: _seed(acc_by_id, acc_pre, a.id, a.current_value) for a in accounts
+    }
 
-    # ── Mortgage / Property history ────────────────────────────────────────
+    # ── Properties / mortgage parts ────────────────────────────────────────
     property_values: dict[int, float] = {}
     property_ownership: dict[int, float] = {}
     part_balances: dict[int, float] = {}
     part_to_property: dict[int, int] = {}
-    
     prop_logs: list = []
     part_logs: list = []
+    # (time, kind, id) deletion events
+    end_events: list[tuple[datetime, str, int]] = []
 
     if include_mortgages:
-        properties = db.query(Property).filter(Property.is_active == True).all()
-        for p in properties:
-            # Seed property value
-            pre_val_log = (
-                db.query(PropertyValueAuditLog)
-                .filter(PropertyValueAuditLog.property_id == p.id, PropertyValueAuditLog.recorded_at < since)
-                .order_by(desc(PropertyValueAuditLog.recorded_at))
-                .first()
-            )
-            property_values[p.id] = pre_val_log.new_value if pre_val_log else p.property_value
-            property_ownership[p.id] = p.ownership_percent
-            
-            # Seed mortgage parts
-            for pt in p.mortgage_parts:
-                if pt.is_active:
-                    pre_bal_log = (
-                        db.query(MortgagePartAuditLog)
-                        .filter(MortgagePartAuditLog.part_id == pt.id, MortgagePartAuditLog.recorded_at < since)
-                        .order_by(desc(MortgagePartAuditLog.recorded_at))
-                        .first()
-                    )
-                    part_balances[pt.id] = pre_bal_log.new_value if pre_bal_log else pt.outstanding_balance
-                    part_to_property[pt.id] = p.id
-
+        properties = [
+            p for p in db.query(Property).all() if p.is_active or p.updated_at >= since
+        ]
         prop_ids = [p.id for p in properties]
+        # Query parts directly: Property.mortgage_parts only returns ACTIVE parts.
+        parts = (
+            db.query(MortgagePart).filter(MortgagePart.property_id.in_(prop_ids)).all()
+        ) if prop_ids else []
+        parts = [pt for pt in parts if pt.is_active or pt.updated_at >= since]
+
         if prop_ids:
             prop_logs = (
                 db.query(PropertyValueAuditLog)
-                .filter(PropertyValueAuditLog.property_id.in_(prop_ids), PropertyValueAuditLog.recorded_at >= since)
-                .order_by(PropertyValueAuditLog.recorded_at)
+                .filter(PropertyValueAuditLog.property_id.in_(prop_ids),
+                        PropertyValueAuditLog.recorded_at >= since)
+                .order_by(PropertyValueAuditLog.recorded_at, PropertyValueAuditLog.id)
                 .all()
             )
-            
-            part_ids = list(part_balances.keys())
-            if part_ids:
-                part_logs = (
-                    db.query(MortgagePartAuditLog)
-                    .filter(MortgagePartAuditLog.part_id.in_(part_ids), MortgagePartAuditLog.recorded_at >= since)
-                    .order_by(MortgagePartAuditLog.recorded_at)
-                    .all()
-                )
+        part_ids = [pt.id for pt in parts]
+        if part_ids:
+            part_logs = (
+                db.query(MortgagePartAuditLog)
+                .filter(MortgagePartAuditLog.part_id.in_(part_ids),
+                        MortgagePartAuditLog.recorded_at >= since)
+                .order_by(MortgagePartAuditLog.recorded_at, MortgagePartAuditLog.id)
+                .all()
+            )
+        prop_by_id = _group(prop_logs, "property_id")
+        part_by_id = _group(part_logs, "part_id")
+        prop_pre = _last_before(db, PropertyValueAuditLog, PropertyValueAuditLog.property_id, prop_ids, since)
+        part_pre = _last_before(db, MortgagePartAuditLog, MortgagePartAuditLog.part_id, part_ids, since)
+
+        for p in properties:
+            property_values[p.id] = _seed(prop_by_id, prop_pre, p.id, p.property_value)
+            property_ownership[p.id] = p.ownership_percent
+            if not p.is_active:
+                end_events.append((p.updated_at, "property_end", p.id))
+        for pt in parts:
+            part_balances[pt.id] = _seed(part_by_id, part_pre, pt.id, pt.outstanding_balance)
+            part_to_property[pt.id] = pt.property_id
+            if not pt.is_active:
+                end_events.append((pt.updated_at, "part_end", pt.id))
+
+    for a in accounts:
+        if not a.is_active:
+            end_events.append((a.updated_at, "account_end", a.id))
 
     def current_mortgage_equity() -> float:
         total_eq = 0.0
@@ -203,28 +256,38 @@ def get_history(
         return total_eq
 
     # ── Merge and build time series ────────────────────────────────────────
-    events: list[tuple[datetime, str, object]] = []
+    # Same-timestamp ties: value logs first, deletions last.
+    events: list[tuple[datetime, int, str, object]] = []
     for l in account_logs:
-        events.append((l.recorded_at, "account", l))
+        events.append((l.recorded_at, 0, "account", l))
     for l in prop_logs:
-        events.append((l.recorded_at, "property_val", l))
+        events.append((l.recorded_at, 0, "property_val", l))
     for l in part_logs:
-        events.append((l.recorded_at, "part_bal", l))
-        
-    events.sort(key=lambda e: e[0])
+        events.append((l.recorded_at, 0, "part_bal", l))
+    for t, kind, eid in end_events:
+        if t >= since:
+            events.append((t, 1, kind, eid))
+    events.sort(key=lambda e: (e[0], e[1]))
 
     if not events:
         total = sum(account_values.values()) + current_mortgage_equity()
-        return DashboardHistory(points=[HistoryPoint(date=datetime.utcnow(), total_value=total)])
+        return DashboardHistory(points=[HistoryPoint(date=utcnow(), total_value=total, category=category)])
 
     points: List[HistoryPoint] = []
-    for recorded_at, kind, log in events:
+    for recorded_at, _, kind, obj in events:
         if kind == "account":
-            account_values[log.account_id] = log.new_value
+            account_values[obj.account_id] = obj.new_value
         elif kind == "property_val":
-            property_values[log.property_id] = log.new_value
+            property_values[obj.property_id] = obj.new_value
         elif kind == "part_bal":
-            part_balances[log.part_id] = log.new_value
+            part_balances[obj.part_id] = obj.new_value
+        elif kind == "account_end":
+            account_values[obj] = 0.0
+        elif kind == "property_end":
+            property_values.pop(obj, None)
+            property_ownership.pop(obj, None)
+        elif kind == "part_end":
+            part_balances.pop(obj, None)
 
         total = sum(account_values.values()) + current_mortgage_equity()
         points.append(HistoryPoint(date=recorded_at, total_value=total, category=category))

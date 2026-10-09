@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # FolioTrack — one-command launcher
-# Usage: ./start.sh
+# Usage: ./start.sh                    (backend bound to 127.0.0.1)
+#        HOST=0.0.0.0 ./start.sh      (expose backend on the network)
+# Development launcher only (uses --reload); use docker compose for deployment.
 
 set -e
+
+HOST="${HOST:-127.0.0.1}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -23,8 +27,8 @@ echo "  → Installing Python dependencies…"
 source venv/bin/activate
 pip install -q -r requirements.txt
 
-echo "  → Starting FastAPI backend on http://localhost:8000 (listening on all interfaces)"
-uvicorn main:app --reload --host 0.0.0.0 --port 8000 &
+echo "  → Starting FastAPI backend on http://$HOST:8000 (dev, --reload)"
+uvicorn main:app --reload --host "$HOST" --port 8000 &
 BACKEND_PID=$!
 
 # ── Frontend ──────────────────────────────────────────────────────────────────

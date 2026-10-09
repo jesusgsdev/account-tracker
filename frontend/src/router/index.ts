@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { authApi } from '@/api/client'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -29,6 +30,11 @@ const router = createRouter({
       component: () => import('@/views/AuditView.vue'),
     },
     {
+      path: '/data',
+      name: 'data',
+      component: () => import('@/views/DataView.vue'),
+    },
+    {
       path: '/property',
       name: 'property',
       component: () => import('@/views/PropertyView.vue'),
@@ -36,16 +42,10 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to, from, next) => {
-  const isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true'
-
-  if (to.name !== 'login' && !isLoggedIn) {
-    next({ name: 'login' })
-  } else if (to.name === 'login' && isLoggedIn) {
-    next({ name: 'dashboard' })
-  } else {
-    next()
-  }
+router.beforeEach(async (to) => {
+  const user = await authApi.check()
+  if (to.name !== 'login' && !user) return { name: 'login' }
+  if (to.name === 'login' && user) return { name: 'dashboard' }
 })
 
 export default router

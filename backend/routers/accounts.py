@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
+from timeutil import utcnow
 from models import Account, AuditLog
 from schemas import (
     AccountCreate, AccountUpdate, AccountValueUpdate,
@@ -54,7 +55,7 @@ def create_account(payload: AccountCreate, db: Session = Depends(get_db)):
             change_amount=payload.current_value,
             change_percent=None,
             note="Initial value",
-            recorded_at=datetime.utcnow(),
+            recorded_at=utcnow(),
         )
         db.add(log)
 
@@ -80,6 +81,10 @@ def update_account_value(
     account = db.query(Account).filter(Account.id == account_id).first()
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
+    if not account.is_active:
+        # A value change on a deleted account would rewrite its history after the
+        # deletion point (see dashboard history), so refuse it.
+        raise HTTPException(status_code=409, detail="Account is deleted")
 
     previous = account.current_value
     new = payload.new_value
@@ -93,12 +98,12 @@ def update_account_value(
         change_amount=change,
         change_percent=percent,
         note=payload.note,
-        recorded_at=datetime.utcnow(),
+        recorded_at=utcnow(),
     )
     db.add(log)
 
     account.current_value = new
-    account.updated_at = datetime.utcnow()
+    account.updated_at = utcnow()
 
     db.commit()
     db.refresh(log)
@@ -127,6 +132,10 @@ def update_account_metadata(
         raise HTTPException(status_code=404, detail="Account not found")
 
     data = payload.model_dump(exclude_unset=True)
+    # name / account_type / category are NOT NULL: ignore explicit nulls for them.
+    for non_nullable in ("name", "account_type", "category"):
+        if non_nullable in data and data[non_nullable] is None:
+            del data[non_nullable]
 
     # Enforce: initial_investment only makes sense on INVESTMENTS / RETIREMENT
     new_category = data.get("category", account.category)
@@ -135,7 +144,7 @@ def update_account_metadata(
 
     for field, value in data.items():
         setattr(account, field, value)
-    account.updated_at = datetime.utcnow()
+    account.updated_at = utcnow()
 
     db.commit()
     db.refresh(account)
@@ -148,5 +157,5 @@ def delete_account(account_id: int, db: Session = Depends(get_db)):
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
     account.is_active = False
-    account.updated_at = datetime.utcnow()
+    account.updated_at = utcnow()
     db.commit()

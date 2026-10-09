@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
+from timeutil import utcnow
 from models import Property, MortgagePart, PropertyValueAuditLog, MortgagePartAuditLog
 from schemas import (
     PropertyCreate, PropertyUpdate, PropertyValueUpdate, PropertyResponse,
@@ -46,7 +47,7 @@ def create_property(payload: PropertyCreate, db: Session = Depends(get_db)):
         new_value=payload.property_value,
         change_amount=payload.property_value,
         note="Initial property value",
-        recorded_at=datetime.utcnow()
+        recorded_at=utcnow()
     ))
     db.commit()
     db.refresh(p)
@@ -72,8 +73,10 @@ def update_property_metadata(
         raise HTTPException(status_code=404, detail="Property not found")
     
     for field, value in payload.model_dump(exclude_unset=True).items():
+        if value is None and field in ("name", "is_active", "ownership_percent"):
+            continue  # NOT NULL columns
         setattr(p, field, value)
-    p.updated_at = datetime.utcnow()
+    p.updated_at = utcnow()
     db.commit()
     db.refresh(p)
     return PropertyResponse.from_orm_property(p)
@@ -88,7 +91,9 @@ def update_property_value(
     p = db.query(Property).filter(Property.id == property_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Property not found")
-    
+    if not p.is_active:
+        raise HTTPException(status_code=409, detail="Property is deleted")
+
     previous = p.property_value
     change = payload.new_value - previous
     
@@ -98,12 +103,12 @@ def update_property_value(
         new_value=payload.new_value,
         change_amount=change,
         note=payload.note,
-        recorded_at=datetime.utcnow()
+        recorded_at=utcnow()
     )
     db.add(log)
     
     p.property_value = payload.new_value
-    p.updated_at = datetime.utcnow()
+    p.updated_at = utcnow()
     
     db.commit()
     db.refresh(log)
@@ -126,11 +131,11 @@ def delete_property(property_id: int, db: Session = Depends(get_db)):
     if not p:
         raise HTTPException(status_code=404, detail="Property not found")
     p.is_active = False
-    p.updated_at = datetime.utcnow()
+    p.updated_at = utcnow()
     # Also mark all its mortgage parts as inactive
     for part in p.mortgage_parts:
         part.is_active = False
-        part.updated_at = datetime.utcnow()
+        part.updated_at = utcnow()
     db.commit()
 
 
@@ -172,7 +177,9 @@ def create_mortgage_part(
     p = db.query(Property).filter(Property.id == property_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Property not found")
-    
+    if not p.is_active:
+        raise HTTPException(status_code=409, detail="Property is deleted")
+
     part = MortgagePart(
         property_id=property_id,
         name=payload.name,
@@ -195,7 +202,7 @@ def create_mortgage_part(
         new_value=payload.outstanding_balance,
         change_amount=payload.outstanding_balance,
         note="Initial mortgage balance",
-        recorded_at=datetime.utcnow()
+        recorded_at=utcnow()
     ))
     db.commit()
     db.refresh(part)
@@ -213,8 +220,10 @@ def update_mortgage_part_metadata(
         raise HTTPException(status_code=404, detail="Mortgage part not found")
     
     for field, value in payload.model_dump(exclude_unset=True).items():
+        if value is None and field in ("name", "is_active", "mortgage_type"):
+            continue  # NOT NULL columns
         setattr(part, field, value)
-    part.updated_at = datetime.utcnow()
+    part.updated_at = utcnow()
     db.commit()
     db.refresh(part)
     return MortgagePartResponse.from_orm_part(part)
@@ -229,7 +238,9 @@ def update_mortgage_part_balance(
     part = db.query(MortgagePart).filter(MortgagePart.id == part_id).first()
     if not part:
         raise HTTPException(status_code=404, detail="Mortgage part not found")
-    
+    if not part.is_active:
+        raise HTTPException(status_code=409, detail="Mortgage part is deleted")
+
     previous = part.outstanding_balance
     change = payload.new_balance - previous
     
@@ -239,12 +250,12 @@ def update_mortgage_part_balance(
         new_value=payload.new_balance,
         change_amount=change,
         note=payload.note,
-        recorded_at=datetime.utcnow()
+        recorded_at=utcnow()
     )
     db.add(log)
     
     part.outstanding_balance = payload.new_balance
-    part.updated_at = datetime.utcnow()
+    part.updated_at = utcnow()
     
     db.commit()
     db.refresh(log)
@@ -268,7 +279,7 @@ def delete_mortgage_part(part_id: int, db: Session = Depends(get_db)):
     if not part:
         raise HTTPException(status_code=404, detail="Mortgage part not found")
     part.is_active = False
-    part.updated_at = datetime.utcnow()
+    part.updated_at = utcnow()
     db.commit()
 
 

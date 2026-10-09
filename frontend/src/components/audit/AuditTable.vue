@@ -12,7 +12,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="log in logs" :key="log.id" class="audit-row">
+        <tr v-for="log in logs" :key="`${log.source ?? 'account'}-${log.id}`" class="audit-row">
           <td class="td-date">
             <span class="date">{{ formatDate(log.recorded_at) }}</span>
             <span class="time text-xs text-muted">{{ formatTime(log.recorded_at) }}</span>
@@ -28,7 +28,10 @@
               </span>
             </span>
           </td>
-          <td class="td-note text-sm text-muted">{{ log.note ?? '—' }}</td>
+          <td class="td-note text-sm text-muted">
+            <span v-if="isAuto(log)" class="auto-badge" title="Created by the daily snapshot job">auto</span>
+            {{ displayNote(log) }}
+          </td>
         </tr>
         <tr v-if="!logs.length">
           <td colspan="6" class="empty-row">No audit entries found</td>
@@ -39,15 +42,23 @@
 </template>
 
 <script setup lang="ts">
+import { parseApiDate } from '@/utils/date'
 import type { AuditLog } from '@/api/client'
 
 defineProps<{ logs: AuditLog[] }>()
 
+const AUTO_PREFIX = '[auto-snapshot] '
+function isAuto(log: AuditLog) { return !!log.note?.startsWith(AUTO_PREFIX) }
+function displayNote(log: AuditLog) {
+  if (!log.note) return '—'
+  return isAuto(log) ? (log.note.slice(AUTO_PREFIX.length) || '—') : log.note
+}
+
 function formatDate(dt: string) {
-  return new Date(dt + 'Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  return parseApiDate(dt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 function formatTime(dt: string) {
-  return new Date(dt + 'Z').toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  return parseApiDate(dt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 }
 </script>
 
@@ -105,5 +116,17 @@ function formatTime(dt: string) {
   text-align: center;
   color: var(--text-muted);
   padding: var(--space-12) !important;
+}
+.auto-badge {
+  display: inline-block;
+  margin-right: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--accent-glow);
+  color: var(--accent-light);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 </style>

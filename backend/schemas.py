@@ -1,7 +1,18 @@
 from datetime import datetime
-from typing import Optional, List
-from pydantic import BaseModel, field_validator
+from typing import Annotated, Optional, List
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, StringConstraints, field_validator
 from enum import Enum
+
+from timeutil import to_utc_iso
+
+# Response datetimes: the DB stores naive UTC; serialise as ISO-8601 with a
+# trailing 'Z' so clients (new Date(...)) parse them as UTC, not local time.
+# Used on RESPONSE models only; request models keep plain ``datetime``.
+UTCDateTime = Annotated[datetime, PlainSerializer(to_utc_iso, return_type=str, when_used="json")]
+
+# Request-side constraints (never applied to responses so legacy rows still serialise).
+Name255 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
+Opt255 = Annotated[Optional[str], StringConstraints(max_length=255)]
 
 
 class AccountType(str, Enum):
@@ -28,10 +39,10 @@ class AccountCategory(str, Enum):
 # ── Account schemas ──────────────────────────────────────────────────────────
 
 class AccountCreate(BaseModel):
-    name: str
+    name: Name255
     account_type: AccountType
     category: AccountCategory
-    provider: Optional[str] = None
+    provider: Opt255 = None
     current_value: float = 0.0
     initial_investment: Optional[float] = None  # INVESTMENTS / RETIREMENT only
     notes: Optional[str] = None
@@ -52,13 +63,17 @@ class AccountCreate(BaseModel):
 
 
 class AccountUpdate(BaseModel):
-    name: Optional[str] = None
+    """Metadata-only update. current_value changes must go through
+    PATCH /accounts/{id}/value (audit logged) and deletion through DELETE, so
+    unknown fields (current_value, is_active, id, ...) are rejected with 422."""
+    model_config = ConfigDict(extra="forbid")
+
+    name: Optional[Name255] = None
     account_type: Optional[AccountType] = None
     category: Optional[AccountCategory] = None
-    provider: Optional[str] = None
-    initial_investment: Optional[float] = None
+    provider: Opt255 = None
+    initial_investment: Optional[float] = Field(default=None, ge=0)
     notes: Optional[str] = None
-    is_active: Optional[bool] = None
 
 
 class AccountValueUpdate(BaseModel):
@@ -85,8 +100,8 @@ class AccountResponse(BaseModel):
     profit_percent: Optional[float] = None  # computed: (current - initial) / initial * 100
     notes: Optional[str]
     is_active: bool
-    created_at: datetime
-    updated_at: datetime
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
 
     model_config = {"from_attributes": True}
 
@@ -130,7 +145,7 @@ class AuditLogResponse(BaseModel):
     change_amount: float
     change_percent: Optional[float] = None
     note: Optional[str] = None
-    recorded_at: datetime
+    recorded_at: UTCDateTime
 
     model_config = {"from_attributes": True}
 
@@ -160,11 +175,11 @@ class DashboardSummary(BaseModel):
     categories: List[CategorySummary]
     account_count: int
     mortgage_summary: Optional[MortgageSummary] = None
-    last_updated: Optional[datetime]
+    last_updated: Optional[UTCDateTime]
 
 
 class HistoryPoint(BaseModel):
-    date: datetime
+    date: UTCDateTime
     total_value: float
     category: Optional[str] = None
 
@@ -176,14 +191,14 @@ class DashboardHistory(BaseModel):
 # ── Property schemas ──────────────────────────────────────────────────────────
 
 class MortgagePartCreate(BaseModel):
-    name: str
-    lender: Optional[str] = None
+    name: Name255
+    lender: Opt255 = None
     outstanding_balance: float
-    interest_rate: Optional[float] = None
+    interest_rate: Optional[float] = Field(default=None, ge=0, le=100)
     mortgage_type: str = "REPAYMENT"          # REPAYMENT | INTEREST_ONLY
-    term_years: Optional[int] = None
+    term_years: Optional[int] = Field(default=None, ge=0)
     term_months: Optional[int] = None         # 0–11 additional months
-    monthly_payment: Optional[float] = None
+    monthly_payment: Optional[float] = Field(default=None, ge=0)
     notes: Optional[str] = None
 
     @field_validator("outstanding_balance")
@@ -209,15 +224,29 @@ class MortgagePartCreate(BaseModel):
 
 
 class MortgagePartUpdate(BaseModel):
-    name: Optional[str] = None
-    lender: Optional[str] = None
-    interest_rate: Optional[float] = None
+    name: Optional[Name255] = None
+    lender: Opt255 = None
+    interest_rate: Optional[float] = Field(default=None, ge=0, le=100)
     mortgage_type: Optional[str] = None
-    term_years: Optional[int] = None
+    term_years: Optional[int] = Field(default=None, ge=0)
     term_months: Optional[int] = None
-    monthly_payment: Optional[float] = None
+    monthly_payment: Optional[float] = Field(default=None, ge=0)
     notes: Optional[str] = None
     is_active: Optional[bool] = None
+
+    @field_validator("mortgage_type")
+    @classmethod
+    def valid_type(cls, v):
+        if v is not None and v not in ("REPAYMENT", "INTEREST_ONLY"):
+            raise ValueError("mortgage_type must be REPAYMENT or INTEREST_ONLY")
+        return v
+
+    @field_validator("term_months")
+    @classmethod
+    def months_in_range(cls, v):
+        if v is not None and not (0 <= v <= 11):
+            raise ValueError("term_months must be 0–11")
+        return v
 
 
 class MortgagePartBalanceUpdate(BaseModel):
@@ -245,8 +274,8 @@ class MortgagePartResponse(BaseModel):
     monthly_payment: Optional[float]
     notes: Optional[str]
     is_active: bool
-    created_at: datetime
-    updated_at: datetime
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
     # Computed
     remaining_term_months: Optional[int]   # total months
     monthly_interest: Optional[float]      # outstanding * rate/100/12
@@ -281,16 +310,16 @@ class MortgagePartAuditLogResponse(BaseModel):
     new_value: float
     change_amount: float
     note: Optional[str]
-    recorded_at: datetime
+    recorded_at: UTCDateTime
     model_config = {"from_attributes": True}
 
 
 class PropertyCreate(BaseModel):
-    name: str
+    name: Name255
     property_address: Optional[str] = None
-    original_price: Optional[float] = None
+    original_price: Optional[float] = Field(default=None, ge=0)
     property_value: float
-    ownership_percent: float = 100.0
+    ownership_percent: float = Field(default=100.0, ge=0, le=100)
     notes: Optional[str] = None
     purchase_date: Optional[datetime] = None
 
@@ -301,19 +330,12 @@ class PropertyCreate(BaseModel):
             raise ValueError("property_value must be positive")
         return v
 
-    @field_validator("ownership_percent")
-    @classmethod
-    def percent_in_range(cls, v):
-        if not (0 < v <= 100):
-            raise ValueError("ownership_percent must be 1–100")
-        return v
-
 
 class PropertyUpdate(BaseModel):
-    name: Optional[str] = None
+    name: Optional[Name255] = None
     property_address: Optional[str] = None
-    original_price: Optional[float] = None
-    ownership_percent: Optional[float] = None
+    original_price: Optional[float] = Field(default=None, ge=0)
+    ownership_percent: Optional[float] = Field(default=None, ge=0, le=100)
     notes: Optional[str] = None
     purchase_date: Optional[datetime] = None
     is_active: Optional[bool] = None
@@ -339,7 +361,7 @@ class PropertyValueAuditLogResponse(BaseModel):
     new_value: float
     change_amount: float
     note: Optional[str]
-    recorded_at: datetime
+    recorded_at: UTCDateTime
     model_config = {"from_attributes": True}
 
 
@@ -351,10 +373,10 @@ class PropertyResponse(BaseModel):
     property_value: float
     ownership_percent: float
     notes: Optional[str]
-    purchase_date: Optional[datetime]
+    purchase_date: Optional[UTCDateTime]
     is_active: bool
-    created_at: datetime
-    updated_at: datetime
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
     mortgage_parts: List[MortgagePartResponse]
     # Computed
     total_outstanding: float            # sum of active parts' balances
@@ -435,8 +457,8 @@ class ShareHoldingResponse(BaseModel):
     avg_cost: Optional[float]
     currency: Optional[str]
     notes: Optional[str]
-    created_at: datetime
-    updated_at: datetime
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
 
     model_config = {"from_attributes": True}
 
@@ -469,7 +491,10 @@ class LiveHoldingResponse(BaseModel):
 
     # Stale-price fallback — populated when live fetch fails but DB has a last-known price
     is_stale: bool = False               # True = price is from the DB, not live
-    last_price_at: Optional[datetime] = None  # when the stale price was last fetched
+    last_price_at: Optional[UTCDateTime] = None  # when the stale price was last fetched
+    gbpusd_rate_is_fallback: bool = False  # True = GBP/USD rate used was a hard-coded/cached fallback
+    gbpusd_rate_stale: bool = False        # True = GBP/USD rate is older than expected
+    unpriced_tickers: List[str] = []       # tickers excluded from totals (no price available)
 
 
 class PortfolioLiveResponse(BaseModel):
@@ -481,4 +506,7 @@ class PortfolioLiveResponse(BaseModel):
     total_pnl_gbp: Optional[float]
     total_pnl_percent: Optional[float]
     gbpusd_rate: Optional[float]            # the FX rate used
-    last_refreshed: datetime
+    gbpusd_rate_is_fallback: bool = False
+    gbpusd_rate_stale: bool = False
+    unpriced_tickers: List[str] = []
+    last_refreshed: UTCDateTime

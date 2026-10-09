@@ -60,6 +60,7 @@
 </template>
 
 <script setup lang="ts">
+import { parseApiDate } from '@/utils/date'
 import { ref, computed } from 'vue'
 import type { Account } from '@/api/client'
 import SharesPanel from './SharesPanel.vue'
@@ -78,7 +79,7 @@ const formattedValue = computed(() =>
 )
 
 const updatedFormatted = computed(() =>
-  new Date(props.account.updated_at + 'Z').toLocaleDateString('en-GB', {
+  parseApiDate(props.account.updated_at).toLocaleDateString('en-GB', {
     day: 'numeric', month: 'short', year: 'numeric',
   })
 )

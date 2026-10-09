@@ -25,6 +25,7 @@
         :mortgage-equity="summary?.mortgage_equity ?? 0"
         :mortgage-summary="summary?.mortgage_summary ?? null"
         :last-updated="summary?.last_updated ?? null"
+        :price-warning="priceWarning"
       />
     </div>
 
@@ -71,13 +72,27 @@
 </template>
 
 <script setup lang="ts">
+import { parseApiDate } from '@/utils/date'
 import { ref, computed, onMounted } from 'vue'
 import { api, type DashboardSummary, type DashboardHistory } from '@/api/client'
+import { useSharesStore } from '@/stores/shares'
 import NetWorthCard from '@/components/dashboard/NetWorthCard.vue'
 import CategoryBreakdown from '@/components/dashboard/CategoryBreakdown.vue'
 import NetWorthChart from '@/components/dashboard/NetWorthChart.vue'
 import AllocationPie from '@/components/dashboard/AllocationPie.vue'
 import WealthForecast from '@/components/dashboard/WealthForecast.vue'
+
+const sharesStore = useSharesStore()
+
+// Uses only already-fetched share state (populated when Accounts / Trackers were visited)
+const priceWarning = computed(() => {
+  if (sharesStore.syncError) return 'Last share sync failed'
+  const ps = Object.values(sharesStore.portfolios)
+  const stale = ps.reduce((n, p) => n + p.holdings.filter(h => h.is_stale || h.live_value_gbp == null).length, 0)
+  if (stale) return `${stale} holding${stale === 1 ? '' : 's'} with stale or missing prices`
+  if (ps.some(p => p.gbpusd_rate_is_fallback)) return 'Using fallback GBP/USD rate'
+  return null
+})
 
 const summary = ref<DashboardSummary | null>(null)
 const history = ref<DashboardHistory | null>(null)
@@ -86,7 +101,7 @@ const error = ref(false)
 
 const lastUpdatedFormatted = computed(() => {
   if (!summary.value?.last_updated) return ''
-  return new Date(summary.value.last_updated + 'Z').toLocaleDateString('en-GB', {
+  return parseApiDate(summary.value.last_updated).toLocaleDateString('en-GB', {
     day: 'numeric', month: 'long', year: 'numeric',
   })
 })

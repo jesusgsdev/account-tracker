@@ -141,6 +141,7 @@
 </template>
 
 <script setup lang="ts">
+import { parseApiDate } from '@/utils/date'
 import { ref, computed } from 'vue'
 import { api, type Property, type MortgagePart } from '@/api/client'
 import UpdatePropertyValueModal from './UpdatePropertyValueModal.vue'
@@ -187,7 +188,7 @@ const totalEstPayment = computed(() => {
 })
 
 const updatedFormatted = computed(() =>
-  new Date(props.property.updated_at + 'Z').toLocaleDateString('en-GB', {
+  parseApiDate(props.property.updated_at).toLocaleDateString('en-GB', {
     day: 'numeric', month: 'short', year: 'numeric',
   })
 )

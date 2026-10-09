@@ -8,4 +8,10 @@ __pycache__
 tracker.db
 tracker.db-wal
 tracker.db-shm
+*.db
+*.db-wal
+*.db-shm
 data
+tests
+.env
+backup*.json

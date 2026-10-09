@@ -16,6 +16,8 @@ export const useSharesStore = defineStore('shares', () => {
   const loading    = ref(false)
   const error      = ref<string | null>(null)
   const lastRefreshedAt = ref<Date | null>(null)
+  /** Last share-sync failure message (cleared on next successful sync). */
+  const syncError   = ref<string | null>(null)
 
   const hasAnyHoldings = computed(() => Object.keys(portfolios.value).length > 0)
 
@@ -73,6 +75,7 @@ export const useSharesStore = defineStore('shares', () => {
     error,
     lastRefreshedAt,
     hasAnyHoldings,
+    syncError,
     refreshAll,
     refreshAccount,
     invalidateAccount,

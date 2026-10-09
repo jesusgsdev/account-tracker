@@ -31,6 +31,8 @@
           </div>
         </div>
 
+        <PortfolioWarnings :portfolios="portfolio ? [portfolio] : []" :now="now" />
+
         <!-- Chips of Tickers -->
         <div class="ticker-chips">
           <span
@@ -135,7 +137,7 @@
               </transition>
 
               <!-- Error Banner -->
-              <div v-if="localError" class="error-banner text-xs">⚠️ {{ localError }}</div>
+              <WarningBanner v-if="localError" level="error">{{ localError }}</WarningBanner>
 
               <!-- Empty State -->
               <div v-if="holdings.length === 0 && !showAddForm" class="empty-state text-sm text-muted">
@@ -287,8 +289,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { api, type ShareHolding, type LiveHolding, type PortfolioLive } from '@/api/client'
+import { api, apiErrorMessage, type ShareHolding, type LiveHolding, type PortfolioLive } from '@/api/client'
 import { useSharesStore } from '@/stores/shares'
+import WarningBanner from '@/components/common/WarningBanner.vue'
+import PortfolioWarnings from '@/components/common/PortfolioWarnings.vue'
 import ConfirmModal from '@/components/layout/ConfirmModal.vue'
 
 const props = defineProps<{ 
@@ -465,9 +469,12 @@ async function syncAccountValue() {
   localError.value = null
   try {
     const result = await api.shares.sync(props.accountId)
+    sharesStore.syncError = null
     emit('synced', result.new_value)
   } catch (e: any) {
-    localError.value = `Sync failed: ${e.message}`
+    const msg = apiErrorMessage(e)
+    sharesStore.syncError = msg
+    localError.value = `Sync failed: ${msg}`
   } finally {
     syncing.value = false
   }

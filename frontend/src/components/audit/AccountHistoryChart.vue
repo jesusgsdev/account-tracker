@@ -9,6 +9,7 @@
 </template>
 
 <script setup lang="ts">
+import { parseApiDate } from '@/utils/date'
 import { computed } from 'vue'
 import {
   Chart as ChartJS, CategoryScale, LinearScale, PointElement,
@@ -31,7 +32,7 @@ const chartData = computed(() => {
   if (!props.logs.length) return null
   return {
     labels: props.logs.map(l =>
-      new Date(l.recorded_at + 'Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+      parseApiDate(l.recorded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
     ),
     datasets: [{
       label: props.accountName,

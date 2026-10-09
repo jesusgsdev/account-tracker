@@ -28,6 +28,8 @@ export interface AuditLog {
   change_percent: number | null
   note: string | null
   recorded_at: string
+  /** Optional discriminator when lists from different audit tables are merged. */
+  source?: string
 }
 
 export interface CategorySummary {
@@ -177,22 +179,104 @@ export interface PortfolioLive {
   total_pnl_gbp: number | null
   total_pnl_percent: number | null
   gbpusd_rate: number | null
+  gbpusd_rate_is_fallback?: boolean
+  gbpusd_rate_stale?: boolean
+  unpriced_tickers?: string[]
   last_refreshed: string
 }
+
+// ── Data tools types ─────────────────────────────────────────────────────────
+
+export interface SnapshotSkipped { account_id: number; name: string; reason: string }
+export interface SnapshotRunResult {
+  accounts_updated: number
+  accounts_skipped: SnapshotSkipped[]
+  ran_at: string
+}
+export interface SnapshotStatus {
+  enabled: boolean
+  hour_utc: number
+  last_run_at: string | null
+  last_result: SnapshotRunResult | null
+}
+export interface BackupFile { filename: string; size_bytes: number; created_at: string }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    credentials: 'same-origin',
     ...options,
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
   })
+  if (res.status === 401 && !path.startsWith('/auth/')) {
+    authState.checked = false
+    authState.user = null
+    if (window.location.pathname !== '/login') window.location.assign('/login')
+  }
   if (!res.ok) {
     const body = await res.text()
     throw new Error(`API ${res.status}: ${body}`)
   }
   if (res.status === 204) return undefined as T
   return res.json()
+}
+
+/** Extract a human-readable message from an `API <status>: {"detail": ...}` error. */
+export function apiErrorMessage(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e ?? 'Unknown error')
+  const m = raw.match(/^API (\d+): ([\s\S]*)$/)
+  if (!m) return raw
+  const [, status, body] = m
+  try {
+    const detail = JSON.parse(body)?.detail
+    if (typeof detail === 'string') return detail
+    if (Array.isArray(detail)) return detail.map((d: any) => d?.msg ?? JSON.stringify(d)).join('; ')
+  } catch { /* body wasn't JSON */ }
+  return body.trim() || `Request failed (${status})`
+}
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+
+/** Cached auth state used by the router guard. */
+export const authState: { checked: boolean; user: string | null } = { checked: false, user: null }
+
+export const authApi = {
+  /** Returns the username if the session cookie is valid, else null (cached after first check). */
+  async check(force = false): Promise<string | null> {
+    if (authState.checked && !force) return authState.user
+    try {
+      const res = await fetch(`${BASE}/auth/me`, { credentials: 'same-origin' })
+      authState.user = res.ok ? (await res.json()).username : null
+    } catch {
+      authState.user = null
+    }
+    authState.checked = true
+    return authState.user
+  },
+  async login(username: string, password: string): Promise<void> {
+    const res = await fetch(`${BASE}/auth/login`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    })
+    if (!res.ok) {
+      let detail = 'Login failed'
+      try { detail = (await res.json()).detail || detail } catch { /* ignore */ }
+      throw new Error(detail)
+    }
+    authState.user = username
+    authState.checked = true
+  },
+  async logout(): Promise<void> {
+    try {
+      await fetch(`${BASE}/auth/logout`, { method: 'POST', credentials: 'same-origin' })
+    } finally {
+      authState.user = null
+      authState.checked = true
+    }
+  },
 }
 
 // ── Accounts ─────────────────────────────────────────────────────────────────
@@ -220,7 +304,7 @@ export const api = {
         body: JSON.stringify({ new_value, note }),
       }),
 
-    updateMeta: (id: number, payload: Partial<Omit<Account, 'id' | 'created_at' | 'updated_at' | 'current_value'>>) =>
+    updateMeta: (id: number, payload: Partial<Pick<Account, 'name' | 'account_type' | 'category' | 'provider' | 'initial_investment' | 'notes'>>) =>
       request<Account>(`/accounts/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
 
     delete: (id: number) => request<void>(`/accounts/${id}`, { method: 'DELETE' }),
@@ -295,6 +379,22 @@ export const api = {
     partHistory: (partId: number) => request<MortgagePartAuditLog[]>(`/properties/parts/${partId}/history`),
   },
 
+  snapshots: {
+    status: () => request<SnapshotStatus>('/snapshots/status'),
+    run: () => request<SnapshotRunResult>('/snapshots/run', { method: 'POST' }),
+  },
+
+  export: {
+    // Downloads are same-origin anchor links; the session cookie authenticates them.
+    accountsCsvUrl: () => `${BASE}/export/accounts.csv`,
+    auditCsvUrl: (accountId?: number) =>
+      `${BASE}/export/audit.csv${accountId ? `?account_id=${accountId}` : ''}`,
+    propertiesCsvUrl: () => `${BASE}/export/properties.csv`,
+    backupJsonUrl: () => `${BASE}/export/backup.json`,
+    backups: () => request<BackupFile[]>('/export/backups'),
+    runBackup: () => request<BackupFile>('/export/backups/run', { method: 'POST' }),
+  },
+
   shares: {
     list: (accountId: number) =>
       request<ShareHolding[]>(`/shares/${accountId}`),
@@ -325,7 +425,7 @@ export const api = {
       request<PortfolioLive[]>(`/shares/all-live`),
 
     sync: (accountId: number) =>
-      request<{ previous_value: number; new_value: number; change_amount: number; tickers_synced: string[]; gbpusd_rate: number | null }>(
+      request<{ previous_value: number; new_value: number; change_amount: number; tickers_synced: string[]; stale_tickers?: string[]; gbpusd_rate: number | null; gbpusd_rate_is_fallback?: boolean; gbpusd_rate_is_stale?: boolean; gbpusd_rate_fetched_at?: string | null }>(
         `/shares/${accountId}/sync`, { method: 'POST' }
       ),
   },

@@ -1,4 +1,4 @@
-from datetime import datetime
+from timeutil import utcnow
 from sqlalchemy import (
     Column, Integer, String, Float, Boolean,
     DateTime, ForeignKey, Text
@@ -19,8 +19,8 @@ class Account(Base):
     initial_investment = Column(Float, nullable=True)
     notes = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     audit_logs = relationship("AuditLog", back_populates="account", cascade="all, delete-orphan")
     share_holdings = relationship("ShareHolding", back_populates="account", cascade="all, delete-orphan")
@@ -36,7 +36,7 @@ class AuditLog(Base):
     change_amount = Column(Float, nullable=False)
     change_percent = Column(Float, nullable=True)
     note = Column(Text, nullable=True)
-    recorded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    recorded_at = Column(DateTime, default=utcnow, nullable=False)
 
     account = relationship("Account", back_populates="audit_logs")
 
@@ -63,8 +63,8 @@ class ShareHolding(Base):
     last_price_currency = Column(String(10), nullable=True)
     last_price_at       = Column(DateTime, nullable=True)
 
-    created_at   = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at   = Column(DateTime, default=utcnow, nullable=False)
+    updated_at   = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     account = relationship("Account", back_populates="share_holdings")
 
@@ -87,8 +87,8 @@ class Property(Base):
     notes = Column(Text, nullable=True)
     purchase_date = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     mortgage_parts = relationship(
         "MortgagePart", back_populates="property",
@@ -125,8 +125,8 @@ class MortgagePart(Base):
     notes = Column(Text, nullable=True)
 
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     property = relationship("Property", back_populates="mortgage_parts", foreign_keys=[property_id])
     balance_audit_logs = relationship(
@@ -144,7 +144,7 @@ class PropertyValueAuditLog(Base):
     new_value = Column(Float, nullable=False)
     change_amount = Column(Float, nullable=False)
     note = Column(Text, nullable=True)
-    recorded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    recorded_at = Column(DateTime, default=utcnow, nullable=False)
 
     property = relationship("Property", back_populates="value_audit_logs")
 
@@ -159,6 +159,6 @@ class MortgagePartAuditLog(Base):
     new_value = Column(Float, nullable=False)
     change_amount = Column(Float, nullable=False)
     note = Column(Text, nullable=True)
-    recorded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    recorded_at = Column(DateTime, default=utcnow, nullable=False)
 
     part = relationship("MortgagePart", back_populates="balance_audit_logs")

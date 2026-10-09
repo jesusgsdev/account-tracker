@@ -49,6 +49,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { authApi } from '@/api/client'
 
 const router = useRouter()
 const username = ref('')
@@ -56,20 +57,18 @@ const password = ref('')
 const errorMsg = ref('')
 const loading = ref(false)
 
-function handleLogin() {
+async function handleLogin() {
   errorMsg.value = ''
   loading.value = true
-
-  // Simulate slight authentication latency for a premium feel
-  setTimeout(() => {
-    if (username.value === 'jesgarsal' && password.value === '$evillaNetWorth') {
-      sessionStorage.setItem('isLoggedIn', 'true')
-      router.push('/')
-    } else {
-      errorMsg.value = 'Invalid username or password'
-      loading.value = false
-    }
-  }, 600)
+  try {
+    await authApi.login(username.value, password.value)
+    password.value = ''
+    router.push('/')
+  } catch (e) {
+    errorMsg.value = e instanceof Error ? e.message : 'Login failed'
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 

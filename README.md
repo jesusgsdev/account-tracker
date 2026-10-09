@@ -8,7 +8,7 @@ A **local-first** web application for tracking UK financial accounts (ISAs, SIPP
 |---|---|
 | Frontend | Vue 3 + Vite + TypeScript |
 | Backend | FastAPI (Python 3.11+) |
-| Database | SQLite (`backend/tracker.db`) |
+| Database | SQLite (`backend/tracker.db`, or `$DB_PATH`) |
 | Charts | Chart.js via vue-chartjs |
 
 ## Quick Start
@@ -19,7 +19,7 @@ A **local-first** web application for tracking UK financial accounts (ISAs, SIPP
 
 Then open **http://localhost:5173**
 
-> The `tracker.db` file is created automatically in `backend/`. To back up your data, just copy that file.
+> The `tracker.db` file is created automatically in `backend/`. `start.sh` binds the backend to 127.0.0.1; use `HOST=0.0.0.0 ./start.sh` to expose it on your network.
 
 ## Manual Start
 
@@ -46,28 +46,131 @@ npm run dev
 
 Stocks & Shares ISA, Cash ISA, LISA (Lifetime ISA), SIPP, Workplace Pension, GIA, Premium Bonds, Fixed-Term Bond, Current Account, Savings Account, and more.
 
+## Configuration
+
+Environment variables (for Docker put them in `.env`, see `.env.example`):
+
+| Variable | Purpose |
+|---|---|
+| `DB_PATH` | SQLite file location. Default `backend/tracker.db`; the container uses `/data/tracker.db`. |
+| `AUTH_USERNAME` | Login username. |
+| `AUTH_PASSWORD_HASH` | Password hash, generated with `python backend/hash_password.py`. |
+| `SESSION_SECRET` | Long random string used to sign sessions. |
+| `CORS_ORIGINS` | Comma-separated allowed origins (only if UI is on another origin). |
+| `APP_UID` / `APP_GID` | Container user ids (default 1000); match the owner of `./data` if needed. |
+
+### Auth setup
+
+```bash
+cp .env.example .env
+cd backend && source venv/bin/activate
+python hash_password.py            # prints a hash to paste into AUTH_PASSWORD_HASH
+python -c "import secrets; print(secrets.token_urlsafe(48))"   # SESSION_SECRET
+```
+
+## Docker Deployment (e.g. Synology NAS)
+
+```bash
+cp .env.example .env     # fill in auth values (see above)
+mkdir -p data            # database directory, mounted at /data in the container
+docker compose up -d --build
+```
+
+The UI is served on port 8080. The backend runs as a non-root user (uid/gid 1000
+by default) and has a healthcheck on `/api/health`; the frontend waits for it.
+If the container cannot write to `./data`, either `chown -R 1000:1000 data`
+or set `APP_UID`/`APP_GID` in `.env` to the owner of `data` and rebuild.
+
+### Upgrading an existing deployment (old single-file mounts)
+
+Older versions bind-mounted `backend/tracker.db`, `-wal` and `-shm` individually.
+They now use the `./data` directory. To move your data without loss, on the NAS in the project folder:
+
+```bash
+# 1. Stop the old stack (this lets SQLite checkpoint/close the WAL)
+docker compose down
+
+# 2. Safety copy of everything
+mkdir -p data backup-old
+cp -a backend/tracker.db* backup-old/
+
+# 3. Move the database into ./data
+#    (copy the -wal and -shm files too if they exist and are non-empty;
+#     they contain recent writes not yet merged into tracker.db)
+cp -a backend/tracker.db data/tracker.db
+[ -f backend/tracker.db-wal ] && cp -a backend/tracker.db-wal data/tracker.db-wal
+[ -f backend/tracker.db-shm ] && cp -a backend/tracker.db-shm data/tracker.db-shm
+
+# 4. Optional: fold the WAL into the main file (needs sqlite3 installed)
+#    sqlite3 data/tracker.db 'PRAGMA wal_checkpoint(TRUNCATE);'
+
+# 5. Permissions for the non-root container user
+chown -R 1000:1000 data
+
+# 6. Pull the new code, configure, start
+git pull
+cp .env.example .env   # then edit it (auth values)
+docker compose up -d --build
+```
+
+Alternative (no sqlite3 needed): before upgrading, while the OLD stack is still running, run
+`docker compose exec backend python backup.py --backup /app/backup.json && docker compose cp backend:/app/backup.json ./backup.json`
+(or copy it out of the container) and after the new stack is up:
+`docker compose cp backup.json backend:/tmp/backup.json && docker compose exec backend python backup.py --restore /tmp/backup.json`.
+If anything looks wrong, your original files remain in `backup-old/`.
+
 ## Database, Backup & Restore
 
-The SQLite database lives at `backend/tracker.db`. You can:
+The SQLite database lives at `backend/tracker.db` locally (or `$DB_PATH`; `./data/tracker.db` in Docker). You can:
 - Open it with [DB Browser for SQLite](https://sqlitebrowser.org/)
-- Copy/move the `tracker.db` file to back up your data
-- Inspect the tables (`accounts`, `audit_log`, `properties`, `mortgage_parts`, etc.) directly
+- Stop the app and copy `tracker.db` (plus `-wal`/`-shm` if present) to back up your data
 
 ### JSON Backup & Restore
 
-A JSON utility script is provided in the `backend/` folder to backup all tables to a portable JSON file, which is highly useful when database schema upgrades require rebuilding the SQLite file:
+`backend/backup.py` exports all tables (accounts, audit log, share holdings, properties, mortgage parts and their audit logs) to portable JSON, preserving ids:
 
 ```bash
-# Navigate and activate backend virtual env
+cd backend && source venv/bin/activate
+
+./backup.py --backup                       # writes backup-YYYYMMDD-HHMMSS.json
+./backup.py --backup my.json --db /path/to/tracker.db
+./backup.py --restore my.json              # replaces current data
+```
+
+Backups are written atomically. Restore validates the whole file first and then
+replaces the data in a single transaction; on any error nothing is changed and
+the exit code is non-zero. In Docker:
+`docker compose exec backend python backup.py --backup /data/backup.json`.
+
+### Automatic backups, snapshots and CSV export
+
+The backend runs two daily background jobs (disabled with `*_ENABLED=0`):
+
+- **Backups**: a dated `backup-YYYYMMDD-HHMMSS.json` (same format as `backup.py`) is written atomically to
+  `BACKUP_DIR` (default: `backups/` next to the database, i.e. `./data/backups` in Docker) at `BACKUP_HOUR_UTC`
+  (default 3). Only the newest `BACKUP_KEEP` (default 14) files matching that name pattern are kept. A catch-up
+  backup runs on startup if the newest one is older than 24h.
+  Restore from one: `docker compose exec backend python backup.py --restore /data/backups/backup-YYYYMMDD-HHMMSS.json`.
+- **Snapshots**: at `SNAPSHOT_HOUR_UTC` (default 21) every active account with share holdings is revalued at live
+  prices and an audit row noted `[auto-snapshot] ...` is written if the value moved by more than 0.005 GBP, so net-worth
+  history keeps moving without manual edits. An account is skipped if any holding has no usable price or FX rate.
+  A catch-up run happens on startup if the last snapshot is older than 24h.
+
+Authenticated endpoints: `GET /api/snapshots/status`, `POST /api/snapshots/run` (409 if already running),
+`GET /api/export/accounts.csv`, `audit.csv` (`?account_id=`), `properties.csv`, `backup.json` (download),
+`GET /api/export/backups`, `POST /api/export/backups/run`. CSV text cells beginning with `= + - @` are prefixed with `'`
+to prevent spreadsheet formula injection; numeric columns are left untouched.
+
+## Tests
+
+```bash
 cd backend
 source venv/bin/activate
-
-# 1. Back up database tables to backup.json
-./backup.py --backup backup.json
-
-# 2. Restore database tables from backup.json (clears current data first)
-./backup.py --restore backup.json
+pip install -r requirements-dev.txt
+pytest
 ```
+
+Tests use a temporary SQLite file (via `DB_PATH`), never your real database.
 
 ## API Docs
 
