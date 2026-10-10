@@ -22,6 +22,8 @@ class ForecastSettings(BaseModel):
     contrib_investments: float = Field(ge=0, le=1_000_000)
     return_rate_retirement: float = Field(ge=0, le=100)
     contrib_retirement: float = Field(ge=0, le=1_000_000)
+    # Added later: older saved settings without it load with the default.
+    contrib_retirement_growth: float = Field(default=1.0, ge=0, le=50)
     inflation_rate: float = Field(ge=0, le=50)
     adjust_inflation: bool
     birth_year: int = Field(ge=1900, le=2100)

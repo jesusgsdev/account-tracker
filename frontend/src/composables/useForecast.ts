@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import { api, apiErrorMessage, type DashboardSummary, type ForecastSettings } from '@/api/client'
 import { formatGBP } from '@/utils/format'
+import { incomeTax, TAX_BASE_YEAR } from '@/utils/tax'
 
 const STORAGE_KEYS = {
   END_YEAR: 'forecast_end_year',
@@ -35,6 +36,8 @@ export function useForecast(summary: () => DashboardSummary) {
   const contribInvestments = ref<number>(Number(localStorage.getItem(STORAGE_KEYS.INV_CONTRIB) || '500'))
   const returnRateRetirement = ref<number>(Number(localStorage.getItem(STORAGE_KEYS.RET_RETURN) || '6.0'))
   const contribRetirement = ref<number>(Number(localStorage.getItem(STORAGE_KEYS.RET_CONTRIB) || '300'))
+  // Retirement contribution entered is today's amount; it grows by this % each year.
+  const contribRetirementGrowth = ref<number>(1)
   const inflationRate = ref<number>(Number(localStorage.getItem(STORAGE_KEYS.INFLATION_RATE) || '2.5'))
   const adjustInflation = ref<boolean>(localStorage.getItem(STORAGE_KEYS.ADJUST_INFLATION) === 'true')
 
@@ -46,13 +49,14 @@ export function useForecast(summary: () => DashboardSummary) {
   // so you can experiment freely and discard() back to the last saved values.
   type Draft = {
     endYear: number; includeOther: boolean; returnRateInvestments: number; contribInvestments: number
-    returnRateRetirement: number; contribRetirement: number; inflationRate: number
+    returnRateRetirement: number; contribRetirement: number; contribRetirementGrowth: number; inflationRate: number
     adjustInflation: boolean; birthYear: number; withdrawalRate: number
   }
   const readDraft = (): Draft => ({
     endYear: endYear.value, includeOther: includeOther.value,
     returnRateInvestments: returnRateInvestments.value, contribInvestments: contribInvestments.value,
     returnRateRetirement: returnRateRetirement.value, contribRetirement: contribRetirement.value,
+    contribRetirementGrowth: contribRetirementGrowth.value,
     inflationRate: inflationRate.value, adjustInflation: adjustInflation.value,
     birthYear: birthYear.value, withdrawalRate: withdrawalRate.value,
   })
@@ -66,6 +70,7 @@ export function useForecast(summary: () => DashboardSummary) {
     end_year: d.endYear, include_other: d.includeOther,
     return_rate_investments: d.returnRateInvestments, contrib_investments: d.contribInvestments,
     return_rate_retirement: d.returnRateRetirement, contrib_retirement: d.contribRetirement,
+    contrib_retirement_growth: d.contribRetirementGrowth,
     inflation_rate: d.inflationRate, adjust_inflation: d.adjustInflation,
     birth_year: d.birthYear, withdrawal_rate: d.withdrawalRate,
   })
@@ -74,6 +79,7 @@ export function useForecast(summary: () => DashboardSummary) {
     endYear.value = d.endYear; includeOther.value = d.includeOther
     returnRateInvestments.value = d.returnRateInvestments; contribInvestments.value = d.contribInvestments
     returnRateRetirement.value = d.returnRateRetirement; contribRetirement.value = d.contribRetirement
+    contribRetirementGrowth.value = d.contribRetirementGrowth
     inflationRate.value = d.inflationRate; adjustInflation.value = d.adjustInflation
     birthYear.value = d.birthYear; withdrawalRate.value = d.withdrawalRate
   }
@@ -87,6 +93,7 @@ export function useForecast(summary: () => DashboardSummary) {
           endYear: r.end_year, includeOther: r.include_other,
           returnRateInvestments: r.return_rate_investments, contribInvestments: r.contrib_investments,
           returnRateRetirement: r.return_rate_retirement, contribRetirement: r.contrib_retirement,
+          contribRetirementGrowth: r.contrib_retirement_growth ?? 1,
           inflationRate: r.inflation_rate, adjustInflation: r.adjust_inflation,
           birthYear: r.birth_year, withdrawalRate: r.withdrawal_rate,
         }
@@ -165,6 +172,7 @@ export function useForecast(summary: () => DashboardSummary) {
     const rRet = (returnRateRetirement.value || 0) / 100
     const cInv = contribInvestments.value || 0
     const cRet = contribRetirement.value || 0
+    const gRet = (contribRetirementGrowth.value || 0) / 100
     const targetYear = endYear.value || (startYear + 1)
     const infRate = (inflationRate.value || 0) / 100
 
@@ -174,7 +182,8 @@ export function useForecast(summary: () => DashboardSummary) {
 
       for (let m = 0; m < 12; m++) {
         currentInv = currentInv * (1 + rInv / 12) + cInv
-        currentRet = currentRet * (1 + rRet / 12) + cRet
+        // Year 1 contributes today's amount; it steps up by gRet at the start of each later year.
+        currentRet = currentRet * (1 + rRet / 12) + cRet * Math.pow(1 + gRet, t - 1)
       }
       points.push({
         year,
@@ -213,18 +222,17 @@ export function useForecast(summary: () => DashboardSummary) {
     return Math.max(1, targetYear - startYear)
   })
 
-  // Total contributions, potentially inflation discounted
+  // Total contributions (retirement part grows yearly), discounted if showing today's £
   const totalContributions = computed(() => {
-    const cInv = contribInvestments.value || 0
-    const cRet = contribRetirement.value || 0
-    const annualContrib = (cInv + cRet) * 12
-
-    if (!adjustInflation.value) return annualContrib * yearsCount.value
+    const annualInv = (contribInvestments.value || 0) * 12
+    const annualRet = (contribRetirement.value || 0) * 12
+    const gRet = (contribRetirementGrowth.value || 0) / 100
+    const infRate = (inflationRate.value || 0) / 100
 
     let total = 0
-    const infRate = (inflationRate.value || 0) / 100
     for (let t = 1; t <= yearsCount.value; t++) {
-      total += annualContrib * Math.pow(1 + infRate, -t)
+      const year = annualInv + annualRet * Math.pow(1 + gRet, t - 1)
+      total += adjustInflation.value ? year * Math.pow(1 + infRate, -t) : year
     }
     return total
   })
@@ -237,6 +245,13 @@ export function useForecast(summary: () => DashboardSummary) {
     // Gains = Ending adjusted total - Starting total - Adjusted contributions
     return Math.max(0, endingTotal - startingTotal - totalContributions.value)
   })
+  // Gains as a share of everything put in (starting balance + contributions)
+  const compoundGainsPercent = computed(() => {
+    const base = startInvestments.value + startRetirement.value
+      + (includeOther.value ? otherAssetsValue.value : 0) + totalContributions.value
+    return base > 0 ? (compoundGains.value / base) * 100 : 0
+  })
+  const compoundGainsPercentFormatted = computed(() => compoundGainsPercent.value.toFixed(1))
   const compoundGainsFormatted = computed(() =>
     formatGBP(compoundGains.value, { decimals: 0, noSymbol: true }))
 
@@ -246,16 +261,30 @@ export function useForecast(summary: () => DashboardSummary) {
   const incomeAtEnd = computed(() => {
     const targetYear = endYear.value || (startYear + 1)
     const infRate = (inflationRate.value || 0) / 100
-    // 2025/26 amount inflated to the end year (nominal) or to today (today's £).
-    const pensionYear = adjustInflation.value ? startYear : targetYear
+    // Pension and tax thresholds both start from 2025/26 and grow with inflation:
+    // to the end year (nominal) or only to today (today's £).
+    const refYear = adjustInflation.value ? startYear : targetYear
+    const growth = Math.pow(1 + infRate, refYear - TAX_BASE_YEAR)
     const pensionActive = targetYear >= statePensionStartYear.value
-    const pension = pensionActive
-      ? STATE_PENSION_2025_26 * Math.pow(1 + infRate, pensionYear - STATE_PENSION_BASE_YEAR)
-      : 0
-    const pots = (finalPoint.value?.investments ?? 0) + (finalPoint.value?.retirement ?? 0)
-    const drawdown = pots * ((withdrawalRate.value || 0) / 100)
-    const annual = pension + drawdown
-    return { pensionActive, pension, drawdown, annual, monthly: annual / 12 }
+    const pension = pensionActive ? STATE_PENSION_2025_26 * growth : 0
+
+    const rate = (withdrawalRate.value || 0) / 100
+    const drawdownInv = (finalPoint.value?.investments ?? 0) * rate
+    const drawdownRet = (finalPoint.value?.retirement ?? 0) * rate
+    const drawdown = drawdownInv + drawdownRet
+    const gross = pension + drawdown
+
+    // Taxable: State Pension + 75% of pension (Retirement) drawdown (25% is tax-free).
+    // Investments are assumed to be ISA-held, so their drawdown is tax-free.
+    const taxableIncome = pension + drawdownRet * 0.75
+    const tax = incomeTax(taxableIncome, growth)
+    const net = gross - tax
+    return {
+      pensionActive, pension, drawdown, gross, tax, net,
+      annual: gross, monthly: gross / 12,
+      netMonthly: net / 12,
+      effectiveRate: gross > 0 ? (tax / gross) * 100 : 0,
+    }
   })
   const fmt0 = (v: number) => formatGBP(v, { decimals: 0, noSymbol: true })
   const income = computed(() => ({
@@ -264,6 +293,10 @@ export function useForecast(summary: () => DashboardSummary) {
     drawdown: fmt0(incomeAtEnd.value.drawdown),
     annual: fmt0(incomeAtEnd.value.annual),
     monthly: fmt0(incomeAtEnd.value.monthly),
+    tax: fmt0(incomeAtEnd.value.tax),
+    netAnnual: fmt0(incomeAtEnd.value.net),
+    netMonthly: fmt0(incomeAtEnd.value.netMonthly),
+    effectiveRate: incomeAtEnd.value.effectiveRate.toFixed(1),
   }))
 
   // Chart.js data
@@ -309,9 +342,9 @@ export function useForecast(summary: () => DashboardSummary) {
 
   return {
     startYear, endYear, includeOther, returnRateInvestments, contribInvestments,
-    returnRateRetirement, contribRetirement, inflationRate, adjustInflation,
+    returnRateRetirement, contribRetirement, contribRetirementGrowth, inflationRate, adjustInflation,
     startInvestments, startRetirement, otherAssetsFormatted,
-    finalNetWorthFormatted, totalContributionsFormatted, compoundGainsFormatted,
+    finalNetWorthFormatted, totalContributionsFormatted, compoundGainsFormatted, compoundGainsPercentFormatted,
     birthYear, withdrawalRate, statePensionStartYear, income,
     isDirty, save, discard, load, loaded, saving, loadError,
     chartData,

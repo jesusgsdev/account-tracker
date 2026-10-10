@@ -64,6 +64,34 @@
       />
     </div>
 
+    <div class="category-section retirement-section">
+      <h3 class="section-title text-sm font-bold text-retirement">🛡️ Retirement</h3>
+      <div class="starting-balance text-xs text-muted">
+        Starting: {{ formatGBP(startRetirement) }}
+      </div>
+      <ForecastControlItem
+        v-model="returnRateRetirement"
+        label="Annual Return %"
+        suffix="%"
+        :input-min="0" :input-max="100" :input-step="0.1"
+        :range-min="0" :range-max="15" :range-step="0.5"
+      />
+      <ForecastControlItem
+        v-model="contribRetirement"
+        label="Monthly Contribution"
+        prefix="£"
+        :input-min="0" :input-step="10"
+        :range-min="0" :range-max="5000" :range-step="50"
+      />
+      <ForecastControlItem
+        v-model="contribRetirementGrowth"
+        label="Contribution Growth / yr"
+        suffix="%"
+        :input-min="0" :input-max="50" :input-step="0.1"
+        :range-min="0" :range-max="10" :range-step="0.1"
+      />
+    </div>
+
     <div class="category-section pension-section">
       <h3 class="section-title text-sm font-bold text-pension">🏛️ State Pension &amp; Income</h3>
       <div class="starting-balance text-xs text-muted">
@@ -89,27 +117,6 @@
         :range-min="0" :range-max="10" :range-step="0.1"
       />
     </div>
-
-    <div class="category-section retirement-section">
-      <h3 class="section-title text-sm font-bold text-retirement">🛡️ Retirement</h3>
-      <div class="starting-balance text-xs text-muted">
-        Starting: {{ formatGBP(startRetirement) }}
-      </div>
-      <ForecastControlItem
-        v-model="returnRateRetirement"
-        label="Annual Return %"
-        suffix="%"
-        :input-min="0" :input-max="100" :input-step="0.1"
-        :range-min="0" :range-max="15" :range-step="0.5"
-      />
-      <ForecastControlItem
-        v-model="contribRetirement"
-        label="Monthly Contribution"
-        prefix="£"
-        :input-min="0" :input-step="10"
-        :range-min="0" :range-max="5000" :range-step="50"
-      />
-    </div>
   </div>
 </template>
 
@@ -132,6 +139,7 @@ const returnRateInvestments = defineModel<number>('returnRateInvestments', { req
 const contribInvestments = defineModel<number>('contribInvestments', { required: true })
 const returnRateRetirement = defineModel<number>('returnRateRetirement', { required: true })
 const contribRetirement = defineModel<number>('contribRetirement', { required: true })
+const contribRetirementGrowth = defineModel<number>('contribRetirementGrowth', { required: true })
 const birthYear = defineModel<number>('birthYear', { required: true })
 const withdrawalRate = defineModel<number>('withdrawalRate', { required: true })
 </script>
@@ -145,8 +153,6 @@ const withdrawalRate = defineModel<number>('withdrawalRate', { required: true })
   border-radius: var(--radius-md);
   border: 1px solid var(--bg-border);
   padding: var(--space-4);
-  max-height: 560px;
-  overflow-y: auto;
 }
 
 .control-group {
@@ -259,9 +265,4 @@ const withdrawalRate = defineModel<number>('withdrawalRate', { required: true })
   padding: 0 var(--space-1);
 }
 
-@media (max-width: 900px) {
-  .controls-panel {
-    max-height: none;
-  }
-}
 </style>

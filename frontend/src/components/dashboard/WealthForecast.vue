@@ -19,6 +19,7 @@
         v-model:contrib-investments="contribInvestments"
         v-model:return-rate-retirement="returnRateRetirement"
         v-model:contrib-retirement="contribRetirement"
+        v-model:contrib-retirement-growth="contribRetirementGrowth"
         :start-year="startYear"
         :start-investments="startInvestments"
         :start-retirement="startRetirement"
@@ -36,6 +37,7 @@
           :final-net-worth="finalNetWorthFormatted"
           :total-contributions="totalContributionsFormatted"
           :compound-gains="compoundGainsFormatted"
+          :compound-gains-percent="compoundGainsPercentFormatted"
         />
         <ForecastIncome
           :end-year="endYear"
@@ -67,9 +69,9 @@ const props = defineProps<{
 
 const {
   startYear, endYear, includeOther, returnRateInvestments, contribInvestments,
-  returnRateRetirement, contribRetirement, inflationRate, adjustInflation,
+  returnRateRetirement, contribRetirement, contribRetirementGrowth, inflationRate, adjustInflation,
   startInvestments, startRetirement, otherAssetsFormatted,
-  finalNetWorthFormatted, totalContributionsFormatted, compoundGainsFormatted,
+  finalNetWorthFormatted, totalContributionsFormatted, compoundGainsFormatted, compoundGainsPercentFormatted,
   birthYear, withdrawalRate, statePensionStartYear, income,
   isDirty, save, discard, load, loaded, saving, loadError,
   chartData,

@@ -192,6 +192,7 @@ export interface ForecastSettings {
   contrib_investments: number
   return_rate_retirement: number
   contrib_retirement: number
+  contrib_retirement_growth: number
   inflation_rate: number
   adjust_inflation: boolean
   birth_year: number

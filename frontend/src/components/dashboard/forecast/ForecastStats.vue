@@ -10,7 +10,7 @@
     </div>
     <div class="stat-card">
       <span class="stat-label text-xs text-muted font-medium">Compound Gains</span>
-      <span class="stat-value text-xl font-bold text-positive">£{{ compoundGains }}</span>
+      <span class="stat-value text-xl font-bold text-positive">£{{ compoundGains }} <span class="gain-pct text-sm">({{ compoundGainsPercent }}%)</span></span>
     </div>
   </div>
 </template>
@@ -25,6 +25,7 @@ const props = defineProps<{
   finalNetWorth: string
   totalContributions: string
   compoundGains: string
+  compoundGainsPercent: string
 }>()
 
 /** Age reached in the forecast end year; hidden while the birth year is half-typed. */
@@ -62,6 +63,7 @@ const age = computed(() => {
 
 .text-secondary { color: #a855f7; }
 .text-positive { color: var(--positive); }
+.gain-pct { font-weight: 600; }
 
 @media (max-width: 900px) {
   .stats-row {
