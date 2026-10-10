@@ -18,6 +18,9 @@
         :start-year="startYear"
         :start-investments="startInvestments"
         :start-retirement="startRetirement"
+        :state-pension-start-year="statePensionStartYear"
+        v-model:birth-year="birthYear"
+        v-model:withdrawal-rate="withdrawalRate"
       />
 
       <!-- Right: Interactive Chart & Stats Summary -->
@@ -25,9 +28,17 @@
         <ForecastStats
           :end-year="endYear"
           :start-year="startYear"
+          :birth-year="birthYear"
           :final-net-worth="finalNetWorthFormatted"
           :total-contributions="totalContributionsFormatted"
           :compound-gains="compoundGainsFormatted"
+        />
+        <ForecastIncome
+          :end-year="endYear"
+          :adjusted="adjustInflation"
+          :pension-start-year="statePensionStartYear"
+          :withdrawal-rate="withdrawalRate"
+          :income="income"
         />
         <ForecastChart :chart-data="chartData" />
       </div>
@@ -41,6 +52,7 @@ import { useForecast } from '@/composables/useForecast'
 import ForecastHeader from './forecast/ForecastHeader.vue'
 import ForecastControls from './forecast/ForecastControls.vue'
 import ForecastStats from './forecast/ForecastStats.vue'
+import ForecastIncome from './forecast/ForecastIncome.vue'
 import ForecastChart from './forecast/ForecastChart.vue'
 
 const props = defineProps<{
@@ -52,6 +64,7 @@ const {
   returnRateRetirement, contribRetirement, inflationRate, adjustInflation,
   startInvestments, startRetirement, otherAssetsFormatted,
   finalNetWorthFormatted, totalContributionsFormatted, compoundGainsFormatted,
+  birthYear, withdrawalRate, statePensionStartYear, income,
   chartData,
 } = useForecast(() => props.summary)
 </script>

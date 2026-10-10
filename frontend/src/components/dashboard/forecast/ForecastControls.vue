@@ -64,6 +64,32 @@
       />
     </div>
 
+    <div class="category-section pension-section">
+      <h3 class="section-title text-sm font-bold text-pension">🏛️ State Pension &amp; Income</h3>
+      <div class="starting-balance text-xs text-muted">
+        State Pension: £{{ pensionBase }}/yr (2025/26), grown by the inflation rate. Starts {{ statePensionStartYear }} (age {{ pensionAge }})
+      </div>
+      <div class="control-label">
+        <span class="text-xs font-medium text-pension">Birth Year</span>
+        <div class="manual-input-wrap">
+          <input
+            type="text"
+            inputmode="numeric"
+            maxlength="4"
+            v-model.number="birthYear"
+            class="manual-input"
+          />
+        </div>
+      </div>
+      <ForecastControlItem
+        v-model="withdrawalRate"
+        label="Pot Drawdown Rate"
+        suffix="%"
+        :input-min="0" :input-max="20" :input-step="0.1"
+        :range-min="0" :range-max="10" :range-step="0.1"
+      />
+    </div>
+
     <div class="category-section retirement-section">
       <h3 class="section-title text-sm font-bold text-retirement">🛡️ Retirement</h3>
       <div class="starting-balance text-xs text-muted">
@@ -89,12 +115,16 @@
 
 <script setup lang="ts">
 import { formatGBP } from '@/utils/format'
+import { STATE_PENSION_AGE as pensionAge, STATE_PENSION_2025_26 } from '@/composables/useForecast'
 import ForecastControlItem from './ForecastControlItem.vue'
+
+const pensionBase = STATE_PENSION_2025_26.toLocaleString('en-GB')
 
 defineProps<{
   startYear: number
   startInvestments: number
   startRetirement: number
+  statePensionStartYear: number
 }>()
 const endYear = defineModel<number>('endYear', { required: true })
 const inflationRate = defineModel<number>('inflationRate', { required: true })
@@ -102,6 +132,8 @@ const returnRateInvestments = defineModel<number>('returnRateInvestments', { req
 const contribInvestments = defineModel<number>('contribInvestments', { required: true })
 const returnRateRetirement = defineModel<number>('returnRateRetirement', { required: true })
 const contribRetirement = defineModel<number>('contribRetirement', { required: true })
+const birthYear = defineModel<number>('birthYear', { required: true })
+const withdrawalRate = defineModel<number>('withdrawalRate', { required: true })
 </script>
 
 <style scoped>
@@ -140,6 +172,7 @@ const contribRetirement = defineModel<number>('contribRetirement', { required: t
 .text-investments { color: var(--cat-investments); }
 .text-retirement { color: var(--cat-retirement); }
 .text-inflation { color: #f43f5e; }
+.text-pension { color: #38bdf8; }
 
 .starting-balance {
   margin-top: calc(-1 * var(--space-2));

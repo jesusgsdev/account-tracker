@@ -11,7 +11,15 @@ const STORAGE_KEYS = {
   RET_CONTRIB: 'forecast_ret_contrib',
   INFLATION_RATE: 'forecast_inflation_rate',
   ADJUST_INFLATION: 'forecast_adjust_inflation',
+  BIRTH_YEAR: 'forecast_birth_year',
+  WITHDRAWAL_RATE: 'forecast_withdrawal_rate',
 }
+
+/** UK State Pension age assumed by the forecast. */
+export const STATE_PENSION_AGE = 68
+/** Full new State Pension for 2025/26: £230.25/week × 52. Inflated from this tax year. */
+export const STATE_PENSION_2025_26 = 11_973
+const STATE_PENSION_BASE_YEAR = 2025
 
 /** Persist a numeric ref to localStorage (skips empty values from half-typed inputs). */
 function persistNumber(source: Ref<number>, key: string, skipFalsy = false) {
@@ -33,6 +41,13 @@ export function useForecast(summary: () => DashboardSummary) {
   const contribRetirement = ref<number>(Number(localStorage.getItem(STORAGE_KEYS.RET_CONTRIB) || '300'))
   const inflationRate = ref<number>(Number(localStorage.getItem(STORAGE_KEYS.INFLATION_RATE) || '2.5'))
   const adjustInflation = ref<boolean>(localStorage.getItem(STORAGE_KEYS.ADJUST_INFLATION) === 'true')
+
+  // Retirement income inputs. The State Pension is the 2025/26 full amount, grown
+  // with the forecast's annual inflation rate.
+  const birthYear = ref<number>(Number(localStorage.getItem(STORAGE_KEYS.BIRTH_YEAR) || '1989'))
+  const withdrawalRate = ref<number>(Number(localStorage.getItem(STORAGE_KEYS.WITHDRAWAL_RATE) || '4'))
+  persistNumber(birthYear, STORAGE_KEYS.BIRTH_YEAR, true)
+  persistNumber(withdrawalRate, STORAGE_KEYS.WITHDRAWAL_RATE)
 
   persistNumber(endYear, STORAGE_KEYS.END_YEAR, true)
   persistNumber(returnRateInvestments, STORAGE_KEYS.INV_RETURN)
@@ -159,6 +174,32 @@ export function useForecast(summary: () => DashboardSummary) {
   const compoundGainsFormatted = computed(() =>
     formatGBP(compoundGains.value, { decimals: 0, noSymbol: true }))
 
+  // ── Retirement income at the forecast end year (gross, before tax) ─────────
+  const statePensionStartYear = computed(() => (birthYear.value || 0) + STATE_PENSION_AGE)
+
+  const incomeAtEnd = computed(() => {
+    const targetYear = endYear.value || (startYear + 1)
+    const infRate = (inflationRate.value || 0) / 100
+    // 2025/26 amount inflated to the end year (nominal) or to today (today's £).
+    const pensionYear = adjustInflation.value ? startYear : targetYear
+    const pensionActive = targetYear >= statePensionStartYear.value
+    const pension = pensionActive
+      ? STATE_PENSION_2025_26 * Math.pow(1 + infRate, pensionYear - STATE_PENSION_BASE_YEAR)
+      : 0
+    const pots = (finalPoint.value?.investments ?? 0) + (finalPoint.value?.retirement ?? 0)
+    const drawdown = pots * ((withdrawalRate.value || 0) / 100)
+    const annual = pension + drawdown
+    return { pensionActive, pension, drawdown, annual, monthly: annual / 12 }
+  })
+  const fmt0 = (v: number) => formatGBP(v, { decimals: 0, noSymbol: true })
+  const income = computed(() => ({
+    pensionActive: incomeAtEnd.value.pensionActive,
+    pension: fmt0(incomeAtEnd.value.pension),
+    drawdown: fmt0(incomeAtEnd.value.drawdown),
+    annual: fmt0(incomeAtEnd.value.annual),
+    monthly: fmt0(incomeAtEnd.value.monthly),
+  }))
+
   // Chart.js data
   const chartData = computed(() => {
     const data = adjustedProjectionData.value
@@ -205,6 +246,7 @@ export function useForecast(summary: () => DashboardSummary) {
     returnRateRetirement, contribRetirement, inflationRate, adjustInflation,
     startInvestments, startRetirement, otherAssetsFormatted,
     finalNetWorthFormatted, totalContributionsFormatted, compoundGainsFormatted,
+    birthYear, withdrawalRate, statePensionStartYear, income,
     chartData,
   }
 }

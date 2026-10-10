@@ -43,6 +43,13 @@
         <span>Market Trackers</span>
       </RouterLink>
 
+      <RouterLink to="/forecast" class="nav-item" :class="{ active: route.name === 'forecast' }">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13" stroke-dasharray="2 3"/>
+        </svg>
+        <span>Forecast</span>
+      </RouterLink>
+
       <RouterLink to="/audit" class="nav-item" :class="{ active: route.name === 'audit' }">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>

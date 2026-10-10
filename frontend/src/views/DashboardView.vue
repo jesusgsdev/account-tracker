@@ -66,9 +66,6 @@
       />
       <AllocationPie :categories="summary?.categories ?? []" class="chart-pie" />
     </div>
-
-    <!-- Forecast Section -->
-    <WealthForecast v-if="summary" :summary="summary" />
   </div>
 </template>
 
@@ -84,7 +81,6 @@ import NetWorthCard from '@/components/dashboard/NetWorthCard.vue'
 import CategoryBreakdown from '@/components/dashboard/CategoryBreakdown.vue'
 import NetWorthChart from '@/components/dashboard/NetWorthChart.vue'
 import AllocationPie from '@/components/dashboard/AllocationPie.vue'
-import WealthForecast from '@/components/dashboard/WealthForecast.vue'
 
 const sharesStore = useSharesStore()
 

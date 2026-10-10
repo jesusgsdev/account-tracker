@@ -25,6 +25,11 @@ const router = createRouter({
       component: () => import('@/views/MarketTrackersView.vue'),
     },
     {
+      path: '/forecast',
+      name: 'forecast',
+      component: () => import('@/views/ForecastView.vue'),
+    },
+    {
       path: '/audit',
       name: 'audit',
       component: () => import('@/views/AuditView.vue'),

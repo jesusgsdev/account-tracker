@@ -1,7 +1,7 @@
 <template>
   <div class="stats-row">
     <div class="stat-card">
-      <span class="stat-label text-xs text-muted font-medium">Projected Net Worth ({{ endYear || startYear + 1 }})</span>
+      <span class="stat-label text-xs text-muted font-medium">Projected Net Worth ({{ endYear || startYear + 1 }})<template v-if="age !== null"> · Age {{ age }}</template></span>
       <span class="stat-value text-xl font-bold">£{{ finalNetWorth }}</span>
     </div>
     <div class="stat-card">
@@ -16,13 +16,23 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+import { computed } from 'vue'
+
+const props = defineProps<{
   endYear: number
   startYear: number
+  birthYear: number
   finalNetWorth: string
   totalContributions: string
   compoundGains: string
 }>()
+
+/** Age reached in the forecast end year; hidden while the birth year is half-typed. */
+const age = computed(() => {
+  const by = props.birthYear
+  const end = props.endYear || props.startYear + 1
+  return by >= 1900 && by <= end ? end - by : null
+})
 </script>
 
 <style scoped>
