@@ -81,44 +81,6 @@ by default) and has a healthcheck on `/api/health`; the frontend waits for it.
 If the container cannot write to `./data`, either `chown -R 1000:1000 data`
 or set `APP_UID`/`APP_GID` in `.env` to the owner of `data` and rebuild.
 
-### Upgrading an existing deployment (old single-file mounts)
-
-Older versions bind-mounted `backend/tracker.db`, `-wal` and `-shm` individually.
-They now use the `./data` directory. To move your data without loss, on the NAS in the project folder:
-
-```bash
-# 1. Stop the old stack (this lets SQLite checkpoint/close the WAL)
-docker compose down
-
-# 2. Safety copy of everything
-mkdir -p data backup-old
-cp -a backend/tracker.db* backup-old/
-
-# 3. Move the database into ./data
-#    (copy the -wal and -shm files too if they exist and are non-empty;
-#     they contain recent writes not yet merged into tracker.db)
-cp -a backend/tracker.db data/tracker.db
-[ -f backend/tracker.db-wal ] && cp -a backend/tracker.db-wal data/tracker.db-wal
-[ -f backend/tracker.db-shm ] && cp -a backend/tracker.db-shm data/tracker.db-shm
-
-# 4. Optional: fold the WAL into the main file (needs sqlite3 installed)
-#    sqlite3 data/tracker.db 'PRAGMA wal_checkpoint(TRUNCATE);'
-
-# 5. Permissions for the non-root container user
-chown -R 1000:1000 data
-
-# 6. Pull the new code, configure, start
-git pull
-cp .env.example .env   # then edit it (auth values)
-docker compose up -d --build
-```
-
-Alternative (no sqlite3 needed): before upgrading, while the OLD stack is still running, run
-`docker compose exec backend python backup.py --backup /app/backup.json && docker compose cp backend:/app/backup.json ./backup.json`
-(or copy it out of the container) and after the new stack is up:
-`docker compose cp backup.json backend:/tmp/backup.json && docker compose exec backend python backup.py --restore /tmp/backup.json`.
-If anything looks wrong, your original files remain in `backup-old/`.
-
 ## Database, Backup & Restore
 
 The SQLite database lives at `backend/tracker.db` locally (or `$DB_PATH`; `./data/tracker.db` in Docker). You can:
