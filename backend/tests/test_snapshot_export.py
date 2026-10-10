@@ -118,12 +118,12 @@ def test_status_survives_restart_via_audit(c, monkeypatch):
     assert s["last_run_at"] is not None and s["last_result"] is None
 
 
-def test_no_schema_change():
+def test_schema_tables():
     con = sqlite3.connect(database.DB_PATH)
     tables = {r[0] for r in con.execute("select name from sqlite_master where type='table'")}
     con.close()
     assert tables == {"accounts", "audit_log", "share_holdings", "properties", "mortgage_parts",
-                      "property_value_audit_log", "mortgage_part_audit_log"}
+                      "property_value_audit_log", "mortgage_part_audit_log", "app_settings"}
 
 
 def test_accounts_csv_and_injection(c):

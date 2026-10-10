@@ -1,5 +1,5 @@
-import { ref, computed, watch, type Ref } from 'vue'
-import type { DashboardSummary } from '@/api/client'
+import { ref, computed } from 'vue'
+import { api, apiErrorMessage, type DashboardSummary, type ForecastSettings } from '@/api/client'
 import { formatGBP } from '@/utils/format'
 
 const STORAGE_KEYS = {
@@ -21,18 +21,14 @@ export const STATE_PENSION_AGE = 68
 export const STATE_PENSION_2025_26 = 11_973
 const STATE_PENSION_BASE_YEAR = 2025
 
-/** Persist a numeric ref to localStorage (skips empty values from half-typed inputs). */
-function persistNumber(source: Ref<number>, key: string, skipFalsy = false) {
-  watch(source, (val) => {
-    if (skipFalsy ? val : (val !== undefined && val !== null)) localStorage.setItem(key, val.toString())
-  })
-}
-
 /** Wealth projection state, persistence and derived figures. */
 export function useForecast(summary: () => DashboardSummary) {
   const startYear = new Date().getFullYear()
 
-  // Simulation inputs (read from localStorage with fallback defaults)
+  // Simulation inputs. Defaults here; the server copy is applied by load(). Values a
+  // previous version kept in this browser's localStorage seed the defaults and are
+  // migrated to the server once if nothing is saved there yet.
+  const hadLegacyLocal = localStorage.getItem(STORAGE_KEYS.END_YEAR) !== null
   const endYear = ref<number>(Number(localStorage.getItem(STORAGE_KEYS.END_YEAR) || '2050'))
   const includeOther = ref<boolean>(localStorage.getItem(STORAGE_KEYS.INCLUDE_OTHER) !== 'false')
   const returnRateInvestments = ref<number>(Number(localStorage.getItem(STORAGE_KEYS.INV_RETURN) || '7.0'))
@@ -46,17 +42,87 @@ export function useForecast(summary: () => DashboardSummary) {
   // with the forecast's annual inflation rate.
   const birthYear = ref<number>(Number(localStorage.getItem(STORAGE_KEYS.BIRTH_YEAR) || '1989'))
   const withdrawalRate = ref<number>(Number(localStorage.getItem(STORAGE_KEYS.WITHDRAWAL_RATE) || '4'))
-  persistNumber(birthYear, STORAGE_KEYS.BIRTH_YEAR, true)
-  persistNumber(withdrawalRate, STORAGE_KEYS.WITHDRAWAL_RATE)
+  // Edits are a draft: nothing is stored until save() is called,
+  // so you can experiment freely and discard() back to the last saved values.
+  type Draft = {
+    endYear: number; includeOther: boolean; returnRateInvestments: number; contribInvestments: number
+    returnRateRetirement: number; contribRetirement: number; inflationRate: number
+    adjustInflation: boolean; birthYear: number; withdrawalRate: number
+  }
+  const readDraft = (): Draft => ({
+    endYear: endYear.value, includeOther: includeOther.value,
+    returnRateInvestments: returnRateInvestments.value, contribInvestments: contribInvestments.value,
+    returnRateRetirement: returnRateRetirement.value, contribRetirement: contribRetirement.value,
+    inflationRate: inflationRate.value, adjustInflation: adjustInflation.value,
+    birthYear: birthYear.value, withdrawalRate: withdrawalRate.value,
+  })
+  const saved = ref<Draft>(readDraft())
+  const isDirty = computed(() => JSON.stringify(readDraft()) !== JSON.stringify(saved.value))
 
-  persistNumber(endYear, STORAGE_KEYS.END_YEAR, true)
-  persistNumber(returnRateInvestments, STORAGE_KEYS.INV_RETURN)
-  persistNumber(contribInvestments, STORAGE_KEYS.INV_CONTRIB)
-  persistNumber(returnRateRetirement, STORAGE_KEYS.RET_RETURN)
-  persistNumber(contribRetirement, STORAGE_KEYS.RET_CONTRIB)
-  persistNumber(inflationRate, STORAGE_KEYS.INFLATION_RATE)
-  watch(includeOther, (val) => { localStorage.setItem(STORAGE_KEYS.INCLUDE_OTHER, val.toString()) })
-  watch(adjustInflation, (val) => { localStorage.setItem(STORAGE_KEYS.ADJUST_INFLATION, val.toString()) })
+  const loaded = ref(false)
+  const saving = ref(false)
+
+  const toSettings = (d: Draft): ForecastSettings => ({
+    end_year: d.endYear, include_other: d.includeOther,
+    return_rate_investments: d.returnRateInvestments, contrib_investments: d.contribInvestments,
+    return_rate_retirement: d.returnRateRetirement, contrib_retirement: d.contribRetirement,
+    inflation_rate: d.inflationRate, adjust_inflation: d.adjustInflation,
+    birth_year: d.birthYear, withdrawal_rate: d.withdrawalRate,
+  })
+
+  function apply(d: Draft) {
+    endYear.value = d.endYear; includeOther.value = d.includeOther
+    returnRateInvestments.value = d.returnRateInvestments; contribInvestments.value = d.contribInvestments
+    returnRateRetirement.value = d.returnRateRetirement; contribRetirement.value = d.contribRetirement
+    inflationRate.value = d.inflationRate; adjustInflation.value = d.adjustInflation
+    birthYear.value = d.birthYear; withdrawalRate.value = d.withdrawalRate
+  }
+
+  /** Load the saved settings from the server (shared across devices). */
+  async function load() {
+    try {
+      const r = await api.settings.getForecast()
+      if (r) {
+        const d: Draft = {
+          endYear: r.end_year, includeOther: r.include_other,
+          returnRateInvestments: r.return_rate_investments, contribInvestments: r.contrib_investments,
+          returnRateRetirement: r.return_rate_retirement, contribRetirement: r.contrib_retirement,
+          inflationRate: r.inflation_rate, adjustInflation: r.adjust_inflation,
+          birthYear: r.birth_year, withdrawalRate: r.withdrawal_rate,
+        }
+        apply(d)
+        saved.value = d
+      } else if (hadLegacyLocal) {
+        // One-off migration of settings previously kept only in this browser.
+        await api.settings.saveForecast(toSettings(readDraft())).catch(() => {})
+        saved.value = readDraft()
+      }
+      loaded.value = true
+    } catch (e) {
+      loadError.value = apiErrorMessage(e)
+    }
+  }
+  const loadError = ref<string | null>(null)
+
+  /** Save to the server. Returns an error message, or null on success. */
+  async function save(): Promise<string | null> {
+    const d = readDraft()
+    // Half-typed inputs can be empty/NaN; refuse to persist those.
+    if (Object.values(d).some(v => typeof v !== 'boolean' && (v === ('' as unknown) || !Number.isFinite(Number(v))))
+        || !d.endYear || !d.birthYear) return 'Some inputs are empty or invalid, so nothing was saved'
+    saving.value = true
+    try {
+      await api.settings.saveForecast(toSettings(d))
+      saved.value = d
+      return null
+    } catch (e) {
+      return apiErrorMessage(e)
+    } finally {
+      saving.value = false
+    }
+  }
+
+  function discard() { apply(saved.value) }
 
   // Starting points from category totals
   const categoryTotal = (cat: string) => summary().categories.find(c => c.category === cat)?.total_value ?? 0
@@ -247,6 +313,7 @@ export function useForecast(summary: () => DashboardSummary) {
     startInvestments, startRetirement, otherAssetsFormatted,
     finalNetWorthFormatted, totalContributionsFormatted, compoundGainsFormatted,
     birthYear, withdrawalRate, statePensionStartYear, income,
+    isDirty, save, discard, load, loaded, saving, loadError,
     chartData,
   }
 }

@@ -185,6 +185,19 @@ export interface PortfolioLive {
   last_refreshed: string
 }
 
+export interface ForecastSettings {
+  end_year: number
+  include_other: boolean
+  return_rate_investments: number
+  contrib_investments: number
+  return_rate_retirement: number
+  contrib_retirement: number
+  inflation_rate: number
+  adjust_inflation: boolean
+  birth_year: number
+  withdrawal_rate: number
+}
+
 // ── Data tools types ─────────────────────────────────────────────────────────
 
 export interface SnapshotSkipped { account_id: number; name: string; reason: string }
@@ -391,6 +404,12 @@ export const api = {
     deletePart: (partId: number) => request<void>(`/properties/parts/${partId}`, { method: 'DELETE' }),
 
     partHistory: (partId: number) => request<MortgagePartAuditLog[]>(`/properties/parts/${partId}/history`),
+  },
+
+  settings: {
+    getForecast: () => request<ForecastSettings | null>('/settings/forecast'),
+    saveForecast: (payload: ForecastSettings) =>
+      request<ForecastSettings>('/settings/forecast', { method: 'PUT', body: JSON.stringify(payload) }),
   },
 
   snapshots: {

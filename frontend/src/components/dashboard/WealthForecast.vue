@@ -4,6 +4,10 @@
       v-model:adjust-inflation="adjustInflation"
       v-model:include-other="includeOther"
       :other-assets-formatted="otherAssetsFormatted"
+      :dirty="isDirty && loaded"
+      :saving="saving"
+      @save="onSave"
+      @discard="discard"
     />
 
     <div class="forecast-layout">
@@ -47,8 +51,10 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import type { DashboardSummary } from '@/api/client'
 import { useForecast } from '@/composables/useForecast'
+import { useToast } from '@/composables/useToast'
 import ForecastHeader from './forecast/ForecastHeader.vue'
 import ForecastControls from './forecast/ForecastControls.vue'
 import ForecastStats from './forecast/ForecastStats.vue'
@@ -65,8 +71,22 @@ const {
   startInvestments, startRetirement, otherAssetsFormatted,
   finalNetWorthFormatted, totalContributionsFormatted, compoundGainsFormatted,
   birthYear, withdrawalRate, statePensionStartYear, income,
+  isDirty, save, discard, load, loaded, saving, loadError,
   chartData,
 } = useForecast(() => props.summary)
+
+const toast = useToast()
+
+async function onSave() {
+  const err = await save()
+  if (err) toast.error(err)
+  else toast.success('Forecast settings saved')
+}
+
+onMounted(async () => {
+  await load()
+  if (loadError.value) toast.error(`Could not load saved forecast settings: ${loadError.value}`)
+})
 </script>
 
 <style scoped>

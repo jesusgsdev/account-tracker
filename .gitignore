@@ -49,7 +49,11 @@ backend/backup*.json
 # Secrets / deployment data
 .env
 .env.local
-data/
+/data/
 
 # Runtime FX cache
 backend/services/fx_rates.json
+
+# Deployment output
+deploy/
+deploy.tar.gz

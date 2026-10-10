@@ -162,3 +162,12 @@ class MortgagePartAuditLog(Base):
     recorded_at = Column(DateTime, default=utcnow, nullable=False)
 
     part = relationship("MortgagePart", back_populates="balance_audit_logs")
+
+
+class AppSetting(Base):
+    """Small JSON key/value store for UI settings shared across devices (e.g. the forecast)."""
+    __tablename__ = "app_settings"
+
+    key = Column(String(100), primary_key=True)
+    value = Column(Text, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)

@@ -26,6 +26,7 @@ TABLE_SPECS = [
     ("mortgage_parts", "MortgagePart"),
     ("property_value_audit_log", "PropertyValueAuditLog"),
     ("mortgage_part_audit_log", "MortgagePartAuditLog"),
+    ("app_settings", "AppSetting"),
 ]
 
 
@@ -48,6 +49,11 @@ def parse_datetime(value):
         return datetime.fromisoformat(value)
     except ValueError:
         return datetime.strptime(value.split(".")[0], "%Y-%m-%dT%H:%M:%S")
+
+
+# Tables added after older backups were made: if a backup lacks them, restore leaves
+# the current rows alone instead of emptying them.
+OPTIONAL_TABLES = {"app_settings"}
 
 
 def _load():
@@ -118,6 +124,8 @@ def _build_objects(backup_data, models, tables):
     objects = []
     for name, model in tables:
         rows = backup_data.get(name)
+        if rows is None and name in OPTIONAL_TABLES:
+            continue
         if rows is None:
             print(f"Warning: table '{name}' missing from backup; it will be empty.", file=sys.stderr)
             continue
@@ -161,7 +169,9 @@ def run_restore(input_file):
 
     db = database.SessionLocal()
     try:
-        for _, model in reversed(tables):
+        for name, model in reversed(tables):
+            if name in OPTIONAL_TABLES and name not in backup_data:
+                continue
             db.query(model).delete()
         for name, obj in objects:
             db.add(obj)

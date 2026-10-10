@@ -6,6 +6,12 @@
     </div>
 
     <div class="header-controls">
+      <div class="save-actions">
+        <span v-if="dirty" class="unsaved text-xs">Unsaved changes</span>
+        <button class="btn btn-sm btn-secondary" :disabled="!dirty" @click="emit('discard')">Reset</button>
+        <button class="btn btn-sm btn-primary" :disabled="!dirty || saving" @click="emit('save')">{{ saving ? 'Saving…' : 'Save changes' }}</button>
+      </div>
+
       <!-- Inflation Adjustment Slide-Toggle -->
       <div class="toggle-slider-wrap">
         <span class="toggle-mode-label text-xs" :class="{ active: !adjustInflation }">Future £ (Nominal)</span>
@@ -27,7 +33,8 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{ otherAssetsFormatted: string }>()
+defineProps<{ otherAssetsFormatted: string; dirty: boolean; saving: boolean }>()
+const emit = defineEmits<{ save: []; discard: [] }>()
 const adjustInflation = defineModel<boolean>('adjustInflation', { required: true })
 const includeOther = defineModel<boolean>('includeOther', { required: true })
 </script>
@@ -57,6 +64,13 @@ const includeOther = defineModel<boolean>('includeOther', { required: true })
   gap: var(--space-6);
   flex-wrap: wrap;
 }
+
+.save-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.unsaved { color: var(--accent-light); font-weight: 600; }
 
 /* Inflation Slide-Toggle Styles */
 .toggle-slider-wrap {

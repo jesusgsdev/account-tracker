@@ -13,6 +13,7 @@ from services import backups as backup_svc, snapshot as snapshot_svc
 from services.scheduler import daily_job
 from routers import property as property_router
 from routers import shares as shares_router
+from routers import settings as settings_router
 
 logging.basicConfig(level=logging.INFO)
 
@@ -83,6 +84,7 @@ app.include_router(property_router.router, dependencies=protected)
 app.include_router(shares_router.router, dependencies=protected)
 app.include_router(snapshots_router.router, dependencies=protected)
 app.include_router(export_router.router, dependencies=protected)
+app.include_router(settings_router.router, dependencies=protected)
 
 
 @app.get("/api/health")
