@@ -1,5 +1,14 @@
 # FolioTrack — UK Financial Account Tracker
 
+[![CI](https://github.com/jesusgsdev/account-tracker/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jesusgsdev/account-tracker/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)
+![Vue 3](https://img.shields.io/badge/Vue-3-4FC08D?logo=vuedotjs&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)
+
 A **local-first** web application for tracking UK financial accounts (ISAs, SIPPs, LISAs, GIAs, and more) with a complete audit log and portfolio charts.
 
 ## Stack
@@ -36,11 +45,16 @@ npm run dev
 
 ## Features
 
-- 📊 **Dashboard** — Net worth hero card, category breakdown, area chart (1M/3M/6M/1Y/All), allocation donut
-- 🏦 **Accounts** — Grouped by Investments / Retirement / Savings, add/edit/delete with UK account types
-- 📋 **Audit Log** — Every value change recorded with delta and %, filter by account, export CSV
-- 📈 **Charts** — Net worth over time + per-account history
-- 📱 **Responsive** — Full mobile support with bottom navigation
+- **Accounts and net worth** — ISAs, SIPPs, LISAs, GIAs, savings and more, grouped by Investments / Retirement / Savings, with a net worth hero card, category breakdown and allocation donut
+- **Share holdings** — live prices (Yahoo Finance), non-GBP holdings converted to GBP, and automatic daily revaluation
+- **Property and mortgages** — property values and mortgage parts, with equity counted in net worth
+- **Dashboard history** — net worth and per-account charts (1M/3M/6M/1Y/All) reconstructed from the audit log
+- **Audit log** — every value change recorded with delta and %, filterable by account
+- **Wealth forecast** — long-term projection including state pension and net income estimate, with settings saved in the database
+- **Daily snapshots and backups** — scheduled jobs with startup catch-up and retention
+- **Single-user auth** — password-protected sessions, local-first data
+- **Mobile friendly** — responsive layout with bottom navigation
+- **CSV and JSON export** — accounts, audit log, properties and full backups
 
 ## UK Account Types Supported
 

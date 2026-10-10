@@ -38,17 +38,40 @@ rsync -a \
   "$ROOT/frontend/" "$OUT/frontend/"
 
 echo "→ Copying compose + env template…"
-cp "$ROOT/docker-compose.yml" "$ROOT/.env.example" "$OUT/"
+cp "$ROOT/docker-compose.yml" "$ROOT/docker-compose.ghcr.yml" "$ROOT/.env.example" "$OUT/"
+
+VERSION="$(date +%Y%m%d-%H%M%S)-$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo nogit)"
+echo "$VERSION" > "$OUT/VERSION"
+
+# Build route helper: every run gets a unique image tag, so the NAS never reuses an old image.
+cat > "$OUT/up.sh" <<'SH'
+#!/usr/bin/env sh
+# Run from the project folder (next to .env and data/).
+set -e
+cd "$(dirname "$0")"
+APP_VERSION="$(cat VERSION)" docker compose up -d --build
+echo "Running version $(cat VERSION)"
+SH
+chmod +x "$OUT/up.sh"
 
 cat > "$OUT/DEPLOY.txt" <<'TXT'
-On the NAS, in the project folder (the one containing .env and data/):
+Run all commands in the project folder on the NAS (the one containing .env and data/).
+Always first: docker compose exec backend python backup.py --backup /data/pre-upgrade.json
+              cp -a data data-backup-$(date +%Y%m%d)
+Never touch .env or data/.
 
-  1. Backup:   docker compose exec backend python backup.py --backup /data/pre-upgrade.json
-               cp -a data data-backup-$(date +%Y%m%d)
-  2. Copy backend/ and frontend/ from this folder over the existing ones
-     (and docker-compose.yml only if you changed it). Do NOT touch .env or data/.
-  3. docker compose up -d --build
-  4. docker compose logs -f backend      # check for errors
+Option A - copy folders and build on the NAS (original way)
+  1. Copy backend/, frontend/, docker-compose.yml, VERSION and up.sh from this folder
+     over the existing ones.
+  2. ./up.sh          (builds images tagged with the contents of VERSION, then starts)
+  3. docker compose logs -f backend
+
+Option B - prebuilt images from GHCR (no source needed on the NAS)
+  1. Push a tag (git tag v1.2.0 && git push origin v1.2.0) and wait for the Release run.
+  2. Private package: sudo docker login ghcr.io -u jesusgsdev   (PAT with read:packages)
+  3. Copy docker-compose.ghcr.yml over the project folder, then:
+     APP_VERSION=v1.2.0 docker compose -f docker-compose.ghcr.yml up -d
+  Switching between A and B is safe: both use the same ./data and .env.
 TXT
 
 TAR="$ROOT/deploy.tar.gz"

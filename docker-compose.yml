@@ -1,5 +1,6 @@
 services:
   backend:
+    image: foliotrack-backend:${APP_VERSION:-dev}
     build:
       context: ./backend
       dockerfile: Dockerfile.backend
@@ -25,6 +26,7 @@ services:
     restart: always
 
   frontend:
+    image: foliotrack-frontend:${APP_VERSION:-dev}
     build:
       context: ./frontend
       dockerfile: Dockerfile.frontend
