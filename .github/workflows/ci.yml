@@ -39,7 +39,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: "20" # matches frontend/Dockerfile.frontend
+          node-version: "24" # matches frontend/Dockerfile.frontend
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
