@@ -1,12 +1,12 @@
 # Pull prebuilt images from GHCR instead of building on the NAS.
-# Needs APP_VERSION (the git tag, e.g. v1.2.0):
-#   APP_VERSION=v1.2.0 docker compose -f docker-compose.ghcr.yml up -d
-# or put APP_VERSION=v1.2.0 in .env. Private packages need a one-time
-#   sudo docker login ghcr.io -u jesusgsdev      (PAT with read:packages only)
+# Defaults to the :latest release tag (or override with APP_VERSION=v1.0.0 in .env / shell):
+#   docker compose -f docker-compose.ghcr.yml up -d
+# Private packages need a one-time:
+#   sudo docker login ghcr.io -u jesusgsdev      (Classic PAT with read:packages)
 # If this doesn't work on your NAS, use docker-compose.yml (builds locally) instead.
 services:
   backend:
-    image: ghcr.io/jesusgsdev/foliotrack-backend:${APP_VERSION:?set APP_VERSION to a release tag, e.g. v1.2.0}
+    image: ghcr.io/jesusgsdev/foliotrack-backend:${APP_VERSION:-latest}
     pull_policy: always
     # Run as root, as the original version did. Synology ACLs on ./data reject
     # non-root container users; to harden, set a user that owns ./data (e.g. "1026:100").
@@ -27,7 +27,7 @@ services:
     restart: always
 
   frontend:
-    image: ghcr.io/jesusgsdev/foliotrack-frontend:${APP_VERSION:?set APP_VERSION to a release tag, e.g. v1.2.0}
+    image: ghcr.io/jesusgsdev/foliotrack-frontend:${APP_VERSION:-latest}
     pull_policy: always
     ports:
       - "8080:80"

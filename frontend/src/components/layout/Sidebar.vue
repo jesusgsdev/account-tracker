@@ -1,7 +1,7 @@
 <template>
   <aside class="sidebar">
     <div class="sidebar-logo">
-      <span class="logo-icon">📊</span>
+      <img src="/logo.png" alt="FolioTrack" class="logo-icon" />
       <span class="logo-text">FolioTrack</span>
     </div>
 
@@ -74,7 +74,7 @@
         </svg>
         <span>Sign Out</span>
       </button>
-      <div class="sidebar-version">v1.0 · Local First</div>
+      <div class="sidebar-version">{{ appVersion }} · Local First</div>
     </div>
   </aside>
 </template>
@@ -82,6 +82,10 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
 import { authApi } from '@/api/client'
+
+declare const __APP_VERSION__: string
+
+const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'v1.0.0'
 const route = useRoute()
 const router = useRouter()
 
@@ -113,7 +117,13 @@ async function handleLogout() {
   border-bottom: 1px solid var(--bg-border);
 }
 
-.logo-icon { font-size: 1.5rem; }
+.logo-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
 
 .logo-text {
   font-size: var(--font-size-lg);

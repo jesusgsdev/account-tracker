@@ -2,7 +2,7 @@
   <div class="login-container">
     <div class="login-card card">
       <div class="login-header">
-        <div class="logo-circle">📊</div>
+        <img src="/logo.png" alt="FolioTrack" class="logo-circle" />
         <h1 class="login-title">FolioTrack</h1>
         <p class="login-subtitle text-sm text-muted">Enter your credentials to access your net worth tracker</p>
       </div>
@@ -101,9 +101,13 @@ async function handleLogin() {
 }
 
 .logo-circle {
-  font-size: 2.5rem;
+  width: 60px;
+  height: 60px;
+  border-radius: 14px;
+  object-fit: cover;
   margin-bottom: var(--space-3);
   display: inline-block;
+  box-shadow: var(--shadow-md);
 }
 
 .login-title {
