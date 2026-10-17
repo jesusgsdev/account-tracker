@@ -1,7 +1,7 @@
 # FolioTrack — UK Financial Account Tracker
 
 [![CI](https://github.com/jesusgsdev/account-tracker/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jesusgsdev/account-tracker/actions/workflows/ci.yml)
-![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)
 ![Vue 3](https://img.shields.io/badge/Vue-3-4FC08D?logo=vuedotjs&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
@@ -16,7 +16,7 @@ A **local-first** web application for tracking UK financial accounts (ISAs, SIPP
 | Layer | Technology |
 |---|---|
 | Frontend | Vue 3 + Vite + TypeScript |
-| Backend | FastAPI (Python 3.11+) |
+| Backend | FastAPI (Python 3.14) |
 | Database | SQLite (`backend/tracker.db`, or `$DB_PATH`) |
 | Charts | Chart.js via vue-chartjs |
 
